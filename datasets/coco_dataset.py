@@ -19,14 +19,14 @@ class CocoDataset(data.Dataset):
     ):
         self.max_feat_num = max_feat_num
         self.seq_per_img = seq_per_img
-        self.image_ids = utils.load_lines(image_ids_path)
+        self.image_ids = utils.load_lines(image_ids_path)  # a list
         self.att_feats_folder = att_feats_folder if len(att_feats_folder) > 0 else None
         self.gv_feat = pickle.load(open(gv_feat_path, 'rb'), encoding='bytes') if len(gv_feat_path) > 0 else None
-
+        #None
         if input_seq is not None and target_seq is not None:
             self.input_seq = pickle.load(open(input_seq, 'rb'), encoding='bytes')
             self.target_seq = pickle.load(open(target_seq, 'rb'), encoding='bytes')
-            self.seq_len = len(self.input_seq[self.image_ids[0]][0,:])
+            self.seq_len = len(self.input_seq[self.image_ids[0]][0,:])# 
         else:
             self.seq_len = -1
             self.input_seq = None
@@ -54,22 +54,22 @@ class CocoDataset(data.Dataset):
         else:
             att_feats = np.zeros((1,1))
         
-        if self.max_feat_num > 0 and att_feats.shape[0] > self.max_feat_num:
+        if self.max_feat_num > 0 and att_feats.shape[0] > self.max_feat_num:# -1
            att_feats = att_feats[:self.max_feat_num, :]
 
         if self.seq_len < 0:
             return indices, gv_feat, att_feats
 
-        input_seq = np.zeros((self.seq_per_img, self.seq_len), dtype='int')
+        input_seq = np.zeros((self.seq_per_img, self.seq_len), dtype='int') #5,17
         target_seq = np.zeros((self.seq_per_img, self.seq_len), dtype='int')
            
         n = len(self.input_seq[image_id])   
         if n >= self.seq_per_img:
             sid = 0
-            ixs = random.sample(range(n), self.seq_per_img)                
-        else:
+            ixs = random.sample(range(n), self.seq_per_img)    #sample seq_per_img             
+        else: #<=
             sid = n
-            ixs = random.sample(range(n), self.seq_per_img - n)
+            ixs = random.sample(range(n), self.seq_per_img - n) #complement
             input_seq[0:n, :] = self.input_seq[image_id]
             target_seq[0:n, :] = self.target_seq[image_id]
            

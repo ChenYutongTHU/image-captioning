@@ -14,7 +14,7 @@ class COCOEvaler(object):
         super(COCOEvaler, self).__init__()
         self.coco = COCO(annfile)
         if not os.path.exists(cfg.TEMP_DIR):
-            os.mkdir(cfg.TEMP_DIR)
+            os.makedirs(cfg.TEMP_DIR)
 
     def eval(self, result):
         in_file = tempfile.NamedTemporaryFile(mode='w', delete=False, dir=cfg.TEMP_DIR)

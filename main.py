@@ -107,15 +107,17 @@ class Trainer(object):
         self.rl_criterion = losses.create(cfg.LOSSES.RL_TYPE).cuda()
         
     def setup_dataset(self):
+        self.logger.info('Setting up dataset ...')
         self.coco_set = datasets.coco_dataset.CocoDataset(            
-            image_ids_path = cfg.DATA_LOADER.TRAIN_ID, 
-            input_seq = cfg.DATA_LOADER.INPUT_SEQ_PATH, 
-            target_seq = cfg.DATA_LOADER.TARGET_SEQ_PATH,
-            gv_feat_path = cfg.DATA_LOADER.TRAIN_GV_FEAT, 
-            att_feats_folder = cfg.DATA_LOADER.TRAIN_ATT_FEATS, 
-            seq_per_img = cfg.DATA_LOADER.SEQ_PER_IMG,
-            max_feat_num = cfg.DATA_LOADER.MAX_FEAT
+            image_ids_path = cfg.DATA_LOADER.TRAIN_ID,  #./mscoco/txt/coco_train_image_id.txt
+            input_seq = cfg.DATA_LOADER.INPUT_SEQ_PATH,  #/mscoco/sent/coco_train_input.pkl
+            target_seq = cfg.DATA_LOADER.TARGET_SEQ_PATH, #./mscoco/sent/coco_train_target.pkl
+            gv_feat_path = cfg.DATA_LOADER.TRAIN_GV_FEAT,  #''
+            att_feats_folder = cfg.DATA_LOADER.TRAIN_ATT_FEATS, #./mscoco/feature/up_down_100
+            seq_per_img = cfg.DATA_LOADER.SEQ_PER_IMG,#5
+            max_feat_num = cfg.DATA_LOADER.MAX_FEAT#-1
         )
+        self.logger.info('Finish setting up dataset ...')
 
     def setup_loader(self, epoch):
         self.training_loader = datasets.data_loader.load_train(
@@ -315,6 +317,5 @@ if __name__ == '__main__':
     if args.folder is not None:
         cfg_from_file(os.path.join(args.folder, 'config.yml'))
     cfg.ROOT_DIR = args.folder
-
     trainer = Trainer(args)
     trainer.train()
