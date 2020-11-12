@@ -35,8 +35,8 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--infeats', default='/data/disk1/private/chenyutong/IC/data/butd/trainval/karpathy_train_resnet101_faster_rcnn_genome.tsv.1', help='image features')
-    parser.add_argument('--outfolder', default='./mscoco/feature/up_down_10_100', help='output folder')
+    parser.add_argument('--infeats', default='/data/disk1/private/chenyutong/IC/data/butd/trainval/karpathy_val_resnet101_faster_rcnn_genome.tsv', help='image features')
+    parser.add_argument('--outfolder', default='../mscoco/feature/up_down_100', help='output folder')
 
     args = parser.parse_args()
     main(args)

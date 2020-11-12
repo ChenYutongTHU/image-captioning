@@ -7,14 +7,20 @@ import samplers.distributed
 import numpy as np
 
 def sample_collate(batch):
-    indices, input_seq, target_seq, gv_feat, att_feats = zip(*batch)
+    #batch ((indice1, input_seq1,...),(indice2, input_seq2))
+    #zip(*batch)
+    #indices = (indice1, indice2)
+    #input_seq = (input_seq1, input_seq2)
+    #image_ids = (imageid1,id2,...)
+    indices, input_seq, target_seq, gv_feat, att_feats, image_ids = zip(*batch)
     
     indices = np.stack(indices, axis=0).reshape(-1)
-    input_seq = torch.cat([torch.from_numpy(b) for b in input_seq], 0)
+    image_ids = np.stack(image_ids, axis=0).reshape(-1)
+    input_seq = torch.cat([torch.from_numpy(b) for b in input_seq], 0)# b 5,L  5*bs,L
     target_seq = torch.cat([torch.from_numpy(b) for b in target_seq], 0)
     gv_feat = torch.cat([torch.from_numpy(b) for b in gv_feat], 0)
 
-    atts_num = [x.shape[0] for x in att_feats]
+    atts_num = [x.shape[0] for x in att_feats] #x = bbox, 2048
     max_att_num = np.max(atts_num)
 
     feat_arr = []
@@ -31,12 +37,13 @@ def sample_collate(batch):
     att_feats = torch.cat(feat_arr, 0)
     att_mask = torch.cat(mask_arr, 0)
 
-    return indices, input_seq, target_seq, gv_feat, att_feats, att_mask
+    return indices, input_seq, target_seq, gv_feat, att_feats, att_mask, image_ids
 
 def sample_collate_val(batch):
-    indices, gv_feat, att_feats = zip(*batch)
+    indices, gv_feat, att_feats, image_ids = zip(*batch)
     
     indices = np.stack(indices, axis=0).reshape(-1)
+    image_ids = np.stack(image_ids, axis=0).reshape(-1)
     gv_feat = torch.cat([torch.from_numpy(b) for b in gv_feat], 0)
 
     atts_num = [x.shape[0] for x in att_feats]
@@ -56,7 +63,7 @@ def sample_collate_val(batch):
     att_feats = torch.cat(feat_arr, 0)
     att_mask = torch.cat(mask_arr, 0)
 
-    return indices, gv_feat, att_feats, att_mask
+    return indices, gv_feat, att_feats, att_mask, image_ids
 
 
 def load_train(distributed, epoch, coco_set):
@@ -66,11 +73,11 @@ def load_train(distributed, epoch, coco_set):
     
     loader = torch.utils.data.DataLoader(
         coco_set, 
-        batch_size = cfg.TRAIN.BATCH_SIZE,
-        shuffle = shuffle, 
-        num_workers = cfg.DATA_LOADER.NUM_WORKERS, 
-        drop_last = cfg.DATA_LOADER.DROP_LAST, 
-        pin_memory = cfg.DATA_LOADER.PIN_MEMORY,
+        batch_size = cfg.TRAIN.BATCH_SIZE, #10
+        shuffle = shuffle,  #True
+        num_workers = cfg.DATA_LOADER.NUM_WORKERS,  #4
+        drop_last = cfg.DATA_LOADER.DROP_LAST,  #True
+        pin_memory = cfg.DATA_LOADER.PIN_MEMORY, #True
         sampler = sampler, 
         collate_fn = sample_collate
     )

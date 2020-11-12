@@ -19,7 +19,7 @@ class CocoDataset(data.Dataset):
     ):
         self.max_feat_num = max_feat_num
         self.seq_per_img = seq_per_img
-        self.image_ids = utils.load_lines(image_ids_path)  # a list
+        self.image_ids = utils.load_lines(image_ids_path)  # a list of int
         self.att_feats_folder = att_feats_folder if len(att_feats_folder) > 0 else None
         self.gv_feat = pickle.load(open(gv_feat_path, 'rb'), encoding='bytes') if len(gv_feat_path) > 0 else None
         #None
@@ -58,7 +58,7 @@ class CocoDataset(data.Dataset):
            att_feats = att_feats[:self.max_feat_num, :]
 
         if self.seq_len < 0:
-            return indices, gv_feat, att_feats
+            return indices, gv_feat, att_feats, image_id
 
         input_seq = np.zeros((self.seq_per_img, self.seq_len), dtype='int') #5,17
         target_seq = np.zeros((self.seq_per_img, self.seq_len), dtype='int')
@@ -76,4 +76,4 @@ class CocoDataset(data.Dataset):
         for i, ix in enumerate(ixs):
             input_seq[sid + i] = self.input_seq[image_id][ix,:]
             target_seq[sid + i] = self.target_seq[image_id][ix,:]
-        return indices, input_seq, target_seq, gv_feat, att_feats
+        return indices, input_seq, target_seq, gv_feat, att_feats, image_id

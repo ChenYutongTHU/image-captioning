@@ -8,6 +8,21 @@ from torch.autograd import Variable
 from lib.config import cfg
 from torch.nn.utils.weight_norm import weight_norm
 
+import cv2
+import numpy as np
+
+def draw_bbox(img, boxes, cat_name):
+    for bx in boxes:
+        [x,y,w,h] = bx[0]
+        color = (np.random.random((1, 3))*0.7*255+0.3*255)
+        if len(bx)>1:
+            name = cat_name[bx[1]-1].strip()
+            cv2.rectangle(img, (int(x+5), int(y+5)), (int(x+10*len(name)), int(y+20)), [255,255,255], -1)
+            cv2.putText(img, text=name, org=(int(x+5), int(y+15)), fontFace=3, fontScale=0.5, thickness=1, color=[0,0,0])#, thickness[, lineType[, bottomLeftOrigin]]])
+        cv2.rectangle(img, (int(x), int(y)), (int(x+w), int(y+h)), color.tolist()[0], 2)
+    return img
+
+
 def activation(act):
     if act == 'RELU':
         return nn.ReLU()

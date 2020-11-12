@@ -22,7 +22,7 @@ class Evaler(object):
 
         self.eval_ids = np.array(utils.load_ids(eval_ids))
         self.eval_loader = data_loader.load_val(eval_ids, gv_feat, att_feats)
-        self.evaler = evaluation.create(cfg.INFERENCE.EVAL, eval_annfile)
+        self.evaler = evaluation.create(cfg.INFERENCE.EVAL, eval_annfile) #COCO
 
     def make_kwargs(self, indices, ids, gv_feat, att_feats, att_mask):
         kwargs = {}
@@ -39,8 +39,8 @@ class Evaler(object):
         
         results = []
         with torch.no_grad():
-            for _, (indices, gv_feat, att_feats, att_mask) in tqdm.tqdm(enumerate(self.eval_loader)):
-                ids = self.eval_ids[indices]
+            for _, (indices, gv_feat, att_feats, att_mask, image_ids) in tqdm.tqdm(enumerate(self.eval_loader)):
+                ids = self.eval_ids[indices] #=image_id
                 gv_feat = gv_feat.cuda()
                 att_feats = att_feats.cuda()
                 att_mask = att_mask.cuda()
@@ -52,13 +52,17 @@ class Evaler(object):
                 sents = utils.decode_sequence(self.vocab, seq.data)
                 for sid, sent in enumerate(sents):
                     result = {cfg.INFERENCE.ID_KEY: int(ids[sid]), cfg.INFERENCE.CAP_KEY: sent}
+                    #ids[sid] image_id
+                    #sent word untokenized
                     results.append(result)
-        eval_res = self.evaler.eval(results)
+                #break #!!
+        eval_res = self.evaler.eval(results) #...
 
         result_folder = os.path.join(cfg.ROOT_DIR, 'result')
         if not os.path.exists(result_folder):
             os.mkdir(result_folder)
         json.dump(results, open(os.path.join(result_folder, 'result_' + rname +'.json'), 'w'))
+
 
         model.train()
         return eval_res

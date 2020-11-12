@@ -95,7 +95,7 @@ class AttBasicModel(BasicModel):
 
         # bilinear
         if cfg.MODEL.BILINEAR.DIM > 0:
-            gv_feat, att_feats = self.encoder_layers(gv_feat, att_feats, att_mask)
+            gv_feat, att_feats = self.encoder_layers(gv_feat, att_feats, att_mask) #encode block
             keys, value2s = self.attention.precompute(att_feats, att_feats)
             p_att_feats = torch.cat([keys, value2s], dim=-1)
 
@@ -144,15 +144,16 @@ class AttBasicModel(BasicModel):
 
     def get_logprobs_state(self, **kwargs):
         output, state = self.Forward(**kwargs)
-        logprobs = F.log_softmax(self.logit(output), dim=1)
+        logprobs = F.log_softmax(self.logit(output), dim=1) #B, V
         return logprobs, state
 
     def _expand_state(self, batch_size, beam_size, cur_beam_size, state, selected_beam):
-        shape = [int(sh) for sh in state.shape]
-        beam = selected_beam
+        shape = [int(sh) for sh in state.shape]#[#Layer, B, d]
+        beam = selected_beam  #B, beam_size
         for _ in shape[2:]:
-            beam = beam.unsqueeze(-1)
-        beam = beam.unsqueeze(0)
+            beam = beam.unsqueeze(-1)  
+        #beam B, beam_size, 1
+        beam = beam.unsqueeze(0) #1, B, beam_size, 1
         
         state = torch.gather(
             state.view(*([shape[0], batch_size, cur_beam_size] + shape[2:])), 2,
@@ -181,21 +182,25 @@ class AttBasicModel(BasicModel):
 
         outputs = []
         for t in range(cfg.MODEL.SEQ_LEN):
-            cur_beam_size = 1 if t == 0 else beam_size
+            cur_beam_size = 1 if t == 0 else beam_size #???
 
             kwargs[cfg.PARAM.WT] = wt
             kwargs[cfg.PARAM.STATE] = state
-            word_logprob, state = self.get_logprobs_state(**kwargs)
+            word_logprob, state = self.get_logprobs_state(**kwargs)# word_logprob B, #V
             word_logprob = word_logprob.view(batch_size, cur_beam_size, -1)
-            candidate_logprob = seq_logprob + word_logprob
+            candidate_logprob = seq_logprob + word_logprob # B,1,1 + B,1,#V
 
             # Mask sequence if it reaches EOS
             if t > 0:
                 mask = (selected_words.view(batch_size, cur_beam_size) != 0).float().unsqueeze(-1)
-                seq_mask = seq_mask * mask
-                word_logprob = word_logprob * seq_mask.expand_as(word_logprob)
+                #B, cur_beam_size !=0  unended True ended False    -> B, cur_beam_size, 1
+                seq_mask = seq_mask * mask #B, beam_size, 1  update seq_mask
+                word_logprob = word_logprob * seq_mask.expand_as(word_logprob) 
+                #word_logprob B, beam_size #V 
+                #seq_mask B, beam_size, 1
                 old_seq_logprob = seq_logprob.expand_as(candidate_logprob).contiguous()
-                old_seq_logprob[:, :, 1:] = -999
+                #seq_logprob B,1,1 -> B, beam_size, #V
+                old_seq_logprob[:, :, 1:] = -999   #B, beam_size, 
                 candidate_logprob = seq_mask * candidate_logprob + old_seq_logprob * (1 - seq_mask)
 
             selected_idx, selected_logprob = self.select(batch_size, beam_size, t, candidate_logprob)
@@ -205,10 +210,10 @@ class AttBasicModel(BasicModel):
             for s in range(len(state)):
                 state[s] = self._expand_state(batch_size, beam_size, cur_beam_size, state[s], selected_beam)
 
-            seq_logprob = selected_logprob.unsqueeze(-1)
-            seq_mask = torch.gather(seq_mask, 1, selected_beam.unsqueeze(-1))
+            seq_logprob = selected_logprob.unsqueeze(-1)# B,beam_size,1
+            seq_mask = torch.gather(seq_mask, 1, selected_beam.unsqueeze(-1)) #B, beam_size, 1
             outputs = list(torch.gather(o, 1, selected_beam.unsqueeze(-1)) for o in outputs)
-            outputs.append(selected_words.unsqueeze(-1))
+            outputs.append(selected_words.unsqueeze(-1)) #B, beam_size, 1
 
             this_word_logprob = torch.gather(word_logprob, 1,
                 selected_beam.unsqueeze(-1).expand(batch_size, beam_size, word_logprob.shape[-1]))
@@ -216,8 +221,8 @@ class AttBasicModel(BasicModel):
             log_probs = list(
                 torch.gather(o, 1, selected_beam.unsqueeze(-1).expand(batch_size, beam_size, 1)) for o in log_probs)
             log_probs.append(this_word_logprob)
-            selected_words = selected_words.view(-1, 1)
-            wt = selected_words.squeeze(-1)
+            selected_words = selected_words.view(-1, 1)#B*beam_size 1
+            wt = selected_words.squeeze(-1) #B*beam_size
 
             if t == 0:
                 att_feats = utils.expand_tensor(att_feats, beam_size)
@@ -244,29 +249,35 @@ class AttBasicModel(BasicModel):
     # For the experiments of X-LAN, we use the following beam search code, 
     # which achieves slightly better results but much slower.
     
-    #def decode_beam(self, **kwargs):
-    #    beam_size = kwargs['BEAM_SIZE']
-    #    gv_feat, att_feats, att_mask, p_att_feats = self.preprocess(**kwargs)
-    #    batch_size = gv_feat.size(0)
-    #
-    #    sents = Variable(torch.zeros((cfg.MODEL.SEQ_LEN, batch_size), dtype=torch.long).cuda())
-    #    logprobs = Variable(torch.zeros(cfg.MODEL.SEQ_LEN, batch_size).cuda())   
-    #    self.done_beams = [[] for _ in range(batch_size)]
-    #    for n in range(batch_size):
-    #        state = self.init_hidden(beam_size)
-    #        gv_feat_beam = gv_feat[n:n+1].expand(beam_size, gv_feat.size(1)).contiguous()
-    #        att_feats_beam = att_feats[n:n+1].expand(*((beam_size,)+att_feats.size()[1:])).contiguous()
-    #        att_mask_beam = att_mask[n:n+1].expand(*((beam_size,)+att_mask.size()[1:]))
-    #        p_att_feats_beam = p_att_feats[n:n+1].expand(*((beam_size,)+p_att_feats.size()[1:])).contiguous() if p_att_feats is not None else None
-    #
-    #        wt = Variable(torch.zeros(beam_size, dtype=torch.long).cuda())
-    #        kwargs = self.make_kwargs(wt, gv_feat_beam, att_feats_beam, att_mask_beam, p_att_feats_beam, state, **kwargs)
-    #        logprobs_t, state = self.get_logprobs_state(**kwargs)
-    #
-    #        self.done_beams[n] = self.beam_search(state, logprobs_t, **kwargs)
-    #        sents[:, n] = self.done_beams[n][0]['seq'] 
-    #        logprobs[:, n] = self.done_beams[n][0]['logps']
-    #    return sents.transpose(0, 1), logprobs.transpose(0, 1)
+    def decode_beam_xlan(self, **kwargs):
+       beam_size = kwargs['BEAM_SIZE']
+       gv_feat, att_feats, att_mask, p_att_feats = self.preprocess(**kwargs)
+       batch_size = gv_feat.size(0)
+    
+       sents = Variable(torch.zeros((cfg.MODEL.SEQ_LEN, batch_size), dtype=torch.long).cuda())
+       logprobs = Variable(torch.zeros(cfg.MODEL.SEQ_LEN, batch_size).cuda())   
+       self.done_beams = [[] for _ in range(batch_size)]
+       for n in range(batch_size):
+           state = self.init_hidden(beam_size)
+           gv_feat_beam = gv_feat[n:n+1].expand(beam_size, gv_feat.size(1)).contiguous()
+           # bs, N 
+           att_feats_beam = att_feats[n:n+1].expand(*((beam_size,)+att_feats.size()[1:])).contiguous()
+           # bs, N, D
+           att_mask_beam = att_mask[n:n+1].expand(*((beam_size,)+att_mask.size()[1:]))
+           # bs, N
+           p_att_feats_beam = p_att_feats[n:n+1].expand(*((beam_size,)+p_att_feats.size()[1:])).contiguous() if p_att_feats is not None else None
+    
+           wt = Variable(torch.zeros(beam_size, dtype=torch.long).cuda())
+           kwargs = self.make_kwargs(wt, gv_feat_beam, att_feats_beam, att_mask_beam, p_att_feats_beam, state, **kwargs)
+           logprobs_t, state = self.get_logprobs_state(**kwargs) 
+           # logprobs_t  beam_size, #V
+           # state [(#Layer, bs, D),(#Layer, bs, D)]
+    
+           self.done_beams[n] = self.beam_search(state, logprobs_t, **kwargs)
+           sents[:, n] = self.done_beams[n][0]['seq'] 
+           logprobs[:, n] = self.done_beams[n][0]['logps']
+           #finally we choose the sentence with toppest !unaugmented! score
+       return sents.transpose(0, 1), logprobs.transpose(0, 1)
 
 
     def decode(self, **kwargs):

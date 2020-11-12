@@ -19,9 +19,11 @@ class BasicModel(nn.Module):
         def add_diversity(beam_seq_table, logprobsf, t, divm, diversity_lambda, bdash):
             local_time = t - divm
             unaug_logprobsf = logprobsf.clone()
-            for prev_choice in range(divm):
-                prev_decisions = beam_seq_table[prev_choice][local_time]
+            for prev_choice in range(divm): # for each previous group
+                prev_decisions = beam_seq_table[prev_choice][local_time]  # previous group
+                # previous decisions at local time for this group (bdash,)
                 for sub_beam in range(bdash):
+                    #for each example in the  current group
                     for prev_labels in range(bdash):
                         logprobsf[sub_beam][prev_decisions[prev_labels]] = logprobsf[sub_beam][prev_decisions[prev_labels]] - diversity_lambda
             return unaug_logprobsf
@@ -39,9 +41,11 @@ class BasicModel(nn.Module):
             #beam_seq_logprobs : log-probability of each decision made, same size as beam_seq
             #beam_logprobs_sum : joint log-probability of each beam
 
-            ys,ix = torch.sort(logprobsf,1,True)
+            ys,ix = torch.sort(logprobsf,1,True)# dbash, #V
+            #ys dbash,#V
+            #ix dbash,#V
             candidates = []
-            cols = min(beam_size, ys.size(1))
+            cols = min(beam_size, ys.size(1))#dbash
             rows = beam_size
             if t == 0:
                 rows = 1
@@ -54,12 +58,12 @@ class BasicModel(nn.Module):
                     candidates.append({'c':ix[q,c], 'q':q, 'p':candidate_logprob, 'r':local_unaug_logprob})
             candidates = sorted(candidates,  key=lambda x: -x['p'])
             
-            new_state = [_.clone() for _ in state]
+            new_state = [_.clone() for _ in state] #[hidden(#Layer, B',D), cell(#Layer, B', D)]
             #beam_seq_prev, beam_seq_logprobs_prev
             if t >= 1:
             #we''ll need these as reference when we fork beams around
-                beam_seq_prev = beam_seq[:t].clone()
-                beam_seq_logprobs_prev = beam_seq_logprobs[:t].clone()
+                beam_seq_prev = beam_seq[:t].clone()#dbash
+                beam_seq_logprobs_prev = beam_seq_logprobs[:t].clone() # dbash
             for vix in range(beam_size):
                 v = candidates[vix]
                 #fork beam index q into index vix
@@ -73,9 +77,10 @@ class BasicModel(nn.Module):
                 #append new end terminal at the end of this beam
                 beam_seq[t, vix] = v['c'] # c'th word is the continuation
                 beam_seq_logprobs[t, vix] = v['r'] # the raw logprob here
-                beam_logprobs_sum[vix] = v['p'] # the new (sum) logprob along this beam
+                beam_logprobs_sum[vix] = v['p'] # the new (sum) logprob along this beam (augmented)
             state = new_state
             return beam_seq,beam_seq_logprobs,beam_logprobs_sum,state,candidates
+
 
         beam_size = kwargs['BEAM_SIZE']
         group_size = 1 #kwargs['GROUP_SIZE']
@@ -89,26 +94,39 @@ class BasicModel(nn.Module):
         beam_logprobs_sum_table = [torch.zeros(bdash) for _ in range(group_size)]
 
         # logprobs # logprobs predicted in last time step, shape (beam_size, vocab_size+1)
-        done_beams_table = [[] for _ in range(group_size)]
+        done_beams_table = [[] for _ in range(group_size)]  # [[]*group_Size]
         state_table = [list(torch.unbind(_)) for _ in torch.stack(init_state).chunk(group_size, 2)]
-        logprobs_table = list(init_logprobs.chunk(group_size, 0))
+        #init_state stack  #2, Layer, B, D
+        # chunk (groupsize, 2)   Splits a tensor into groupsize along dimension 2 #
+        # [(2, #Layer, B/group_size, D), (2, #Layer, B/group_size, D)??)
+        #[list([#Layer, B/group_size, D] hidden, [#Layer, B/group_size, D]cell), list(a group), list]
+        logprobs_table = list(init_logprobs.chunk(group_size, 0)) # B, #V
         # END INIT
 
         for t in range(cfg.MODEL.SEQ_LEN + group_size - 1):
             for divm in range(group_size): 
-                if t >= divm and t <= cfg.MODEL.SEQ_LEN + divm - 1:
+                if t >= divm and t <= cfg.MODEL.SEQ_LEN + divm - 1:#???
                     # add diversity
-                    logprobsf = logprobs_table[divm].data.float()
+                    logprobsf = logprobs_table[divm].data.float() # bdash, #V
                     # suppress previous word
                     if constraint and t-divm > 0:
+                        # for each example in dbash, 
+                        #set the choose word  beam_seq_table  its logprob to -inf
                         logprobsf.scatter_(1, beam_seq_table[divm][t-divm-1].unsqueeze(1).cuda(), float('-inf'))
+                    #logprobsf dbash #V
+                    #index = beam_seq_table[divm][t-divm-1].unsqueeze(1).cuda()
+                    # [dbash, 1]  #the word index for each example
+                    #src a scalar dim = 1 vocabulary dim 
+
+
                     # suppress UNK tokens in the decoding
-                    logprobsf[:,logprobsf.size(1)-1] -= 1000  
+                    logprobsf[:,logprobsf.size(1)-1] -= 1000   # the last token is UNK？？
                     # diversity is added here
                     # the function directly modifies the logprobsf values and hence, we need to return
                     # the unaugmented ones for sorting the candidates in the end. # for historical
                     # reasons :-)
                     unaug_logprobsf = add_diversity(beam_seq_table,logprobsf,t,divm,diversity_lambda,bdash)
+                    #log probsf augmented
 
                     # infer new beams
                     beam_seq_table[divm],\
@@ -119,10 +137,10 @@ class BasicModel(nn.Module):
                                                 unaug_logprobsf,
                                                 bdash,
                                                 t-divm,
-                                                beam_seq_table[divm],
-                                                beam_seq_logprobs_table[divm],
-                                                beam_logprobs_sum_table[divm],
-                                                state_table[divm])
+                                                beam_seq_table[divm], # SEQ-LEN, bdash
+                                                beam_seq_logprobs_table[divm], ## SEQ-LEN, bdash
+                                                beam_logprobs_sum_table[divm], #dbash
+                                                state_table[divm])# [group1, group2, group3 (hidden, cell)]
 
                     # if time's up... or if end token is reached then copy beams
                     for vix in range(bdash):
@@ -133,7 +151,7 @@ class BasicModel(nn.Module):
                                 'unaug_p': beam_seq_logprobs_table[divm][:, vix].sum().item(),
                                 'p': beam_logprobs_sum_table[divm][vix].item()
                             }
-                            if max_ppl:
+                            if max_ppl: #False
                                 final_beam['p'] = final_beam['p'] / (t-divm+1)
                             done_beams_table[divm].append(final_beam)
                             # don't continue beams from finished sequences
@@ -144,8 +162,10 @@ class BasicModel(nn.Module):
                     kwargs[cfg.PARAM.WT] = wt.cuda()
                     kwargs[cfg.PARAM.STATE] = state_table[divm]
                     logprobs_table[divm], state_table[divm] = self.get_logprobs_state(**kwargs)
+                    #!!!!! att_basic_model.get_logprobs_state(**kwargs)
 
-        # all beams are sorted by their log-probabilities
+        # all beams are sorted by their log-probabilities #（augmented at each time step??)
+        #for each group select top dbash sentences according to their augmented beam_logprobs_sum_table
         done_beams_table = [sorted(done_beams_table[i], key=lambda x: -x['p'])[:bdash] for i in range(group_size)]
         done_beams = reduce(lambda a,b:a+b, done_beams_table)
-        return done_beams
+        return done_beams  #final list B
