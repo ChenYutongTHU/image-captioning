@@ -81,6 +81,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Image Captioning')
     parser.add_argument('--folder', dest='folder', default=None, type=str)
     parser.add_argument("--resume", type=int, default=-1)
+    parser.add_argument('--config', default='config.yml')
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     print(args)
 
     if args.folder is not None:
-        cfg_from_file(os.path.join(args.folder, 'config.yml'))
+        cfg_from_file(os.path.join(args.folder, args.config))
     cfg.ROOT_DIR = args.folder
 
     tester = Tester(args)

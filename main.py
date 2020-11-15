@@ -20,13 +20,12 @@ import losses
 import models
 import datasets
 import lib.utils as utils
-from lib.utils import AverageMeter
+from lib.utils import AverageMeter, ProgressBar
 from optimizer.optimizer import Optimizer
 from evaluation.evaler import Evaler
 from scorer.scorer import Scorer
 from lib.config import cfg, cfg_from_file
 
-from dirname import BBOXES_FILENAME, IMGDIR
 
 class Trainer(object):
     def __init__(self, args):
@@ -44,7 +43,7 @@ class Trainer(object):
             torch.distributed.init_process_group(
                 backend="nccl", init_method="env://"
             )
-            if self.local_rank == 0:
+            if args.local_rank == 0:
                 self.writer = SummaryWriter(args.summary_dir)
         else:
             self.writer = SummaryWriter(args.summary_dir)
@@ -57,13 +56,13 @@ class Trainer(object):
         self.val_evaler = Evaler(
             eval_ids = cfg.DATA_LOADER.VAL_ID,
             gv_feat = cfg.DATA_LOADER.VAL_GV_FEAT,
-            att_feats = cfg.DATA_LOADER.VAL_ATT_FEATS,
+            att_feats = cfg.DATA_LOADER.ATT_FEATS,
             eval_annfile = cfg.INFERENCE.VAL_ANNFILE
         )
         self.test_evaler = Evaler(
             eval_ids = cfg.DATA_LOADER.TEST_ID,
             gv_feat = cfg.DATA_LOADER.TEST_GV_FEAT,
-            att_feats = cfg.DATA_LOADER.TEST_ATT_FEATS,
+            att_feats = cfg.DATA_LOADER.ATT_FEATS,
             eval_annfile = cfg.INFERENCE.TEST_ANNFILE
         )
         self.scorer = Scorer()
@@ -122,24 +121,13 @@ class Trainer(object):
             input_seq = cfg.DATA_LOADER.INPUT_SEQ_PATH,  #/mscoco/sent/coco_train_input.pkl
             target_seq = cfg.DATA_LOADER.TARGET_SEQ_PATH, #./mscoco/sent/coco_train_target.pkl
             gv_feat_path = cfg.DATA_LOADER.TRAIN_GV_FEAT,  #''
-            att_feats_folder = cfg.DATA_LOADER.TRAIN_ATT_FEATS, #./mscoco/feature/up_down_100
+            att_feats_folder = cfg.DATA_LOADER.ATT_FEATS, #./mscoco/feature/up_down_100
             seq_per_img = cfg.DATA_LOADER.SEQ_PER_IMG,#5
-            max_feat_num = cfg.DATA_LOADER.MAX_FEAT#-1
+            max_feat_num = cfg.DATA_LOADER.MAX_FEAT,#-1
+            id2name_path = cfg.DATA_LOADER.ID2NAME,
+            annotation_path = cfg.DATA_LOADER.COCO_ANNOTATION
         )
         self.logger.info('Finish setting up dataset ...')
-
-        self.logger.info('Loading img info')
-        self.butd = {}
-        for key in BBOXES_FILENAME[self.args.dataset_name]:
-            filename = BBOXES_FILENAME[self.args.dataset_name][key]
-            with open(os.path.join(self.args.info_dir, filename),'r') as f:
-                self.butd[key] = json.load(f)
-        
-        with open(os.path.join(self.args.info_dir, 'id2name_123287.json'),'r') as f:
-            self.img_name = json.load(f)
-        self.cat_name = utils.load_lines(os.path.join(self.args.info_dir, 'id2category.txt'))
-        #format 
-        #dict imageid(int) -> [bboxes:[catid,[x,y,h,w]]]
 
     def setup_loader(self, epoch):
         self.training_loader = datasets.data_loader.load_train(
@@ -205,44 +193,38 @@ class Trainer(object):
             ss_prob = min(cfg.TRAIN.SCHEDULED_SAMPLING.INC_PROB * frac, cfg.TRAIN.SCHEDULED_SAMPLING.MAX_PROB)
             self.model.module.ss_prob = ss_prob
 
-    def get_filename(self,img_name):
-        if 'test' in img_name:
-            root = IMGDIR[self.args.dataset_name]['test']
-        elif 'val' in img_name:
-            root = IMGDIR[self.args.dataset_name]['val']
-        else:
-            root = IMGDIR[self.args.dataset_name]['train']
-
-        return os.path.join(root, img_name)
 
     def display(self, iteration, data_time, batch_time, losses, loss_info):
         if iteration % cfg.SOLVER.DISPLAY != 0:
             return
         if self.distributed and dist.get_rank() > 0:
             return
-        info_str = ' (DataTime/BatchTime: {:.3}/{:.3}) losses = {:.5}'.format(data_time.avg, batch_time.avg, losses.avg)
-        self.logger.info('Iteration ' + str(iteration) + info_str +', lr = ' +  str(self.optim.get_lr()))
-        for name in sorted(loss_info):
-            self.logger.info('  ' + name + ' = ' + str(loss_info[name]))
+        #info_str = ' (DataTime/BatchTime: {:.3}/{:.3}) losses = {:.5}'.format(data_time.avg, batch_time.avg, losses.avg)
+        #self.logger.info('Iteration ' + str(iteration) + info_str +', lr = ' +  str(self.optim.get_lr()))
+        # for name in sorted(loss_info):
+        #     self.logger.info('  ' + name + ' = ' + str(loss_info[name]))
         data_time.reset()
         batch_time.reset()
         losses.reset()
 
     def summary(self, iteration, loss, image_ids):
+        if self.distributed and dist.get_rank() > 0:
+            return
         if not iteration % self.args.summary_freq_scalar:
             self.writer.add_scalar('loss', loss.item(), iteration)
             self.writer.add_scalar('lr', self.optim.get_lr(), iteration)
 
         if not iteration % self.args.summary_freq_img2cap:
             id_ = image_ids[0].item()
-            image_filename = self.get_filename(self.img_name[id_])
-            img = cv2.imread(image_filename)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-            annotated_image = utils.draw_bbox(img.copy(), self.butd['annotated_boxes'][id_], self.cat_name)
+            annotated_image = self.coco_set.get_coco_annotated_image(id_)
             self.writer.add_image('AnnotatedImage', img_tensor=annotated_image, global_step=iteration, dataformats='HWC')
-            processed_image = utils.draw_bbox(img.copy(), self.butd['predicted_boxes'][id_], self.cat_name)
-            self.writer.add_image('ProcessedImage', img_tensor=processed_image, global_step=iteration, dataformats='HWC')
+            
+            processed_img_filename = self.coco_set.get_processedimg_path(id_)
+            print('processed_img_filename')
+            processed_img = cv2.imread(processed_img_filename)
+            processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)            
+            self.writer.add_image('ProcessedImage', img_tensor=processed_img, global_step=iteration, dataformats='HWC')
 
     def forward(self, kwargs):
         if self.rl_stage == False:
@@ -309,7 +291,9 @@ class Trainer(object):
             data_time = AverageMeter()
             batch_time = AverageMeter()
             losses = AverageMeter()
-            for _, (indices, input_seq, target_seq, gv_feat, att_feats, att_mask, image_ids) in enumerate(self.training_loader):
+            if not self.distributed or self.args.local_rank == 0:
+                pbar = ProgressBar(n_total=len(self.training_loader), desc='Training')
+            for step, (indices, input_seq, target_seq, gv_feat, att_feats, att_mask, image_ids) in tqdm.tqdm(enumerate(self.training_loader)):
                 data_time.update(time.time() - start)
 
                 input_seq = input_seq.cuda()
@@ -337,7 +321,8 @@ class Trainer(object):
 
                 if self.distributed:
                     dist.barrier()
-                break#?!!!
+                if not self.distributed or self.args.local_rank == 0:
+                    pbar(step)
         
             self.save_model(epoch)
             val = self.eval(epoch)
@@ -352,16 +337,15 @@ def parse_args():
     Parse input arguments
     """
     parser = argparse.ArgumentParser(description='Image Captioning')
-    parser.add_argument('--folder', dest='folder', type=str, default='debug')
+    parser.add_argument('--folder', type=str, default='debug')
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--resume", type=int, default=-1)
     parser.add_argument('--dataset_name', default='coco')
     parser.add_argument('--debug', action="store_true", default=False)
-
+    parser.add_argument('--config', default='config.yml')
     #summary
-    parser.add_argument('--summary_freq_scalar', type=int, default=10, help='per iter')
-    parser.add_argument('--summary_freq_img2cap', type=int, default=100, help='per iter')
-    parser.add_argument('--info_dir', default='./coco_info')
+    parser.add_argument('--summary_freq_scalar', type=int, default=1000, help='per iter')
+    parser.add_argument('--summary_freq_img2cap', type=int, default=10000, help='per iter')
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
@@ -379,7 +363,7 @@ if __name__ == '__main__':
     print(args)
 
     if args.folder is not None:
-        cfg_from_file(os.path.join(args.folder, 'config.yml'))
+        cfg_from_file(args.config)
     cfg.ROOT_DIR = args.folder
     trainer = Trainer(args)
     trainer.train()

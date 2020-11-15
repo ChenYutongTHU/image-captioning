@@ -91,7 +91,9 @@ def load_val(image_ids_path, gv_feat_path, att_feats_folder):
         gv_feat_path = gv_feat_path, 
         att_feats_folder = att_feats_folder,
         seq_per_img = 1, 
-        max_feat_num = cfg.DATA_LOADER.MAX_FEAT
+        max_feat_num = cfg.DATA_LOADER.MAX_FEAT,
+        id2name_path = cfg.DATA_LOADER.ID2NAME,
+        annotation_path = cfg.DATA_LOADER.COCO_ANNOTATION
     )
 
     loader = torch.utils.data.DataLoader(

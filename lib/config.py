@@ -56,6 +56,7 @@ __C.DATA_LOADER.DROP_LAST = True
 
 __C.DATA_LOADER.SHUFFLE = True
 
+__C.DATA_LOADER.ATT_FEATS = 'up_down_10_100'
 __C.DATA_LOADER.TRAIN_GV_FEAT = ''
 
 __C.DATA_LOADER.TRAIN_ATT_FEATS = 'up_down_10_100'
@@ -73,6 +74,7 @@ __C.DATA_LOADER.TRAIN_ID = 'coco_train_image_id.txt'
 __C.DATA_LOADER.VAL_ID = 'coco_val_image_id.txt'
 
 __C.DATA_LOADER.TEST_ID = 'coco_test_image_id.txt'
+__C.DATA_LOADER.ID2NAME = 'id2name_123287.json'
 
 __C.DATA_LOADER.INPUT_SEQ_PATH = 'coco_train_input.pkl'
 
@@ -81,6 +83,7 @@ __C.DATA_LOADER.TARGET_SEQ_PATH = 'coco_train_target.pkl'
 __C.DATA_LOADER.SEQ_PER_IMG = 5
 
 __C.DATA_LOADER.MAX_FEAT = -1
+__C.DATA_LOADER.COCO_ANNOTATION = '/data/disk1/private/FXData/COCO/annotations/'
 
 # ---------------------------------------------------------------------------- #
 # Model options
