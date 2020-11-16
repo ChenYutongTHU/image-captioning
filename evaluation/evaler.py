@@ -15,14 +15,16 @@ class Evaler(object):
         eval_ids,
         gv_feat,
         att_feats,
-        eval_annfile
+        eval_annfile,
+        dataset_name
     ):
         super(Evaler, self).__init__()
         self.vocab = utils.load_vocab(cfg.INFERENCE.VOCAB)
 
-        self.eval_ids = np.array(utils.load_ids(eval_ids))
-        self.eval_loader = data_loader.load_val(eval_ids, gv_feat, att_feats)
-        self.evaler = evaluation.create(cfg.INFERENCE.EVAL, eval_annfile) #COCO
+        self.eval_ids = np.array(utils.load_lines(eval_ids))#np.array(utils.load_ids(eval_ids))
+        self.eval_loader = data_loader.load_val(eval_ids, gv_feat, att_feats, dataset_name)
+        self.evaler = evaluation.create(cfg.INFERENCE.EVAL, eval_annfile) 
+        self.dataset_name = dataset_name
 
     def make_kwargs(self, indices, ids, gv_feat, att_feats, att_mask):
         kwargs = {}
@@ -38,9 +40,10 @@ class Evaler(object):
         model.eval()
         
         results = []
+        cnt = 0
         with torch.no_grad():
             for _, (indices, gv_feat, att_feats, att_mask, image_ids) in tqdm.tqdm(enumerate(self.eval_loader)):
-                ids = self.eval_ids[indices] #=image_id
+                ids = self.eval_ids[indices] #=image_id #str
                 gv_feat = gv_feat.cuda()
                 att_feats = att_feats.cuda()
                 att_mask = att_mask.cuda()
@@ -51,10 +54,14 @@ class Evaler(object):
                     seq, _ = model.module.decode(**kwargs)
                 sents = utils.decode_sequence(self.vocab, seq.data)
                 for sid, sent in enumerate(sents):
-                    result = {cfg.INFERENCE.ID_KEY: int(ids[sid]), cfg.INFERENCE.CAP_KEY: sent}
+                    result = {cfg.INFERENCE.ID_KEY: int(ids[sid]) if self.dataset_name=='coco' else str(ids[sid]), 
+                        cfg.INFERENCE.CAP_KEY: sent}
                     #ids[sid] image_id
                     #sent word untokenized
                     results.append(result)
+                # if cnt>=3:
+                #     break
+                cnt += 1
                 #break #!!
         eval_res = self.evaler.eval(results) #...
 

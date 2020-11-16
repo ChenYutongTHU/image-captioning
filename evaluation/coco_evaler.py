@@ -18,7 +18,7 @@ class COCOEvaler(object):
 
     def eval(self, result):
         in_file = tempfile.NamedTemporaryFile(mode='w', delete=False, dir=cfg.TEMP_DIR)
-        json.dump(result, in_file)
+        json.dump(result, in_file) #[{‘image_id’: int, 'caption':string},{'image_id':int,'caption':string}]
         in_file.close()
 
         cocoRes = self.coco.loadRes(in_file.name)

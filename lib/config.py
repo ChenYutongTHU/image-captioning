@@ -46,8 +46,6 @@ __C.TEST.BATCH_SIZE = 36
 # Data loader options
 # ---------------------------------------------------------------------------- #
 __C.DATA_LOADER = edict()
-
-# Data directory
 __C.DATA_LOADER.NUM_WORKERS = 4
 
 __C.DATA_LOADER.PIN_MEMORY = True
@@ -56,35 +54,104 @@ __C.DATA_LOADER.DROP_LAST = True
 
 __C.DATA_LOADER.SHUFFLE = True
 
-__C.DATA_LOADER.ATT_FEATS = 'up_down_10_100'
-__C.DATA_LOADER.TRAIN_GV_FEAT = ''
-
-__C.DATA_LOADER.TRAIN_ATT_FEATS = 'up_down_10_100'
-
-__C.DATA_LOADER.VAL_GV_FEAT = ''
-
-__C.DATA_LOADER.VAL_ATT_FEATS = 'up_down_10_100'
-
-__C.DATA_LOADER.TEST_GV_FEAT = ''
-
-__C.DATA_LOADER.TEST_ATT_FEATS = 'up_down_10_100'
-
-__C.DATA_LOADER.TRAIN_ID = 'coco_train_image_id.txt'
-
-__C.DATA_LOADER.VAL_ID = 'coco_val_image_id.txt'
-
-__C.DATA_LOADER.TEST_ID = 'coco_test_image_id.txt'
-__C.DATA_LOADER.ID2NAME = 'id2name_123287.json'
-
-__C.DATA_LOADER.INPUT_SEQ_PATH = 'coco_train_input.pkl'
-
-__C.DATA_LOADER.TARGET_SEQ_PATH = 'coco_train_target.pkl'
-
 __C.DATA_LOADER.SEQ_PER_IMG = 5
 
-__C.DATA_LOADER.MAX_FEAT = -1
-__C.DATA_LOADER.COCO_ANNOTATION = '/data/disk1/private/FXData/COCO/annotations/'
+# ---------------------------------------------------------------------------- #
+# coco Data loader options
+# ---------------------------------------------------------------------------- #
+__C.COCO_DATA_LOADER = edict()
 
+# Data directory
+__C.COCO_DATA_LOADER.NUM_WORKERS = 4
+
+__C.COCO_DATA_LOADER.PIN_MEMORY = True
+
+__C.COCO_DATA_LOADER.DROP_LAST = True
+
+__C.COCO_DATA_LOADER.SHUFFLE = True
+
+__C.COCO_DATA_LOADER.ATT_FEATS = 'up_down_10_100'
+__C.COCO_DATA_LOADER.TRAIN_GV_FEAT = ''
+
+__C.COCO_DATA_LOADER.TRAIN_ATT_FEATS = 'up_down_10_100'
+
+__C.COCO_DATA_LOADER.VAL_GV_FEAT = ''
+
+__C.COCO_DATA_LOADER.VAL_ATT_FEATS = 'up_down_10_100'
+
+__C.COCO_DATA_LOADER.TEST_GV_FEAT = ''
+
+__C.COCO_DATA_LOADER.TEST_ATT_FEATS = 'up_down_10_100'
+
+__C.COCO_DATA_LOADER.TRAIN_ID = 'coco_train_image_id.txt'
+
+__C.COCO_DATA_LOADER.VAL_ID = 'coco_val_image_id.txt'
+
+__C.COCO_DATA_LOADER.TEST_ID = 'coco_test_image_id.txt'
+__C.COCO_DATA_LOADER.ID2NAME = 'id2name_123287.json'
+
+__C.COCO_DATA_LOADER.INPUT_SEQ_PATH = 'coco_train_input.pkl'
+
+__C.COCO_DATA_LOADER.TARGET_SEQ_PATH = 'coco_train_target.pkl'
+
+__C.COCO_DATA_LOADER.SEQ_PER_IMG = 5
+
+__C.COCO_DATA_LOADER.MAX_FEAT = -1
+__C.COCO_DATA_LOADER.COCO_ANNOTATION = '/data/disk1/private/FXData/COCO/annotations/'
+
+
+
+# ---------------------------------------------------------------------------- #
+# aic Data loader options
+# ---------------------------------------------------------------------------- #
+__C.AIC_DATA_LOADER = edict()
+
+# Data directory
+__C.AIC_DATA_LOADER.NUM_WORKERS = 4
+
+__C.AIC_DATA_LOADER.PIN_MEMORY = True
+
+__C.AIC_DATA_LOADER.DROP_LAST = True
+
+__C.AIC_DATA_LOADER.SHUFFLE = True
+
+__C.AIC_DATA_LOADER.TRAIN_GV_FEAT = ''
+
+__C.AIC_DATA_LOADER.TRAIN_ATT_FEATS = 'up_down_10_100'
+
+__C.AIC_DATA_LOADER.VAL_GV_FEAT = ''
+
+__C.AIC_DATA_LOADER.VAL_ATT_FEATS = 'up_down_10_100'
+
+__C.AIC_DATA_LOADER.TEST_GV_FEAT = ''
+
+__C.AIC_DATA_LOADER.TEST_ATT_FEATS = 'up_down_10_100'
+
+__C.AIC_DATA_LOADER.TRAIN_ID = 'coco_train_image_id.txt'
+
+__C.AIC_DATA_LOADER.VAL_ID = 'coco_val_image_id.txt'
+
+__C.AIC_DATA_LOADER.TEST_ID = 'coco_test_image_id.txt'
+
+__C.AIC_DATA_LOADER.INPUT_SEQ_PATH = 'coco_train_input.pkl'
+
+__C.AIC_DATA_LOADER.TARGET_SEQ_PATH = 'coco_train_target.pkl'
+
+__C.AIC_DATA_LOADER.SEQ_PER_IMG = 5
+
+__C.AIC_DATA_LOADER.MAX_FEAT = -1
+
+__C.AIC_DATA_LOADER.TRAIN_PROCESSEDIMG_DIR = ''
+
+__C.AIC_DATA_LOADER.TRAIN_IMG_DIR = ''
+
+__C.AIC_DATA_LOADER.VAL_PROCESSEDIMG_DIR = ''
+
+__C.AIC_DATA_LOADER.VAL_IMG_DIR = ''
+
+__C.AIC_DATA_LOADER.TEST_PROCESSEDIMG_DIR = ''
+
+__C.AIC_DATA_LOADER.TEST_IMG_DIR = ''
 # ---------------------------------------------------------------------------- #
 # Model options
 # ---------------------------------------------------------------------------- #
@@ -311,9 +378,13 @@ __C.INFERENCE.CAP_KEY = 'caption'
 
 __C.INFERENCE.EVAL = 'COCO'
 
-__C.INFERENCE.VAL_ANNFILE = 'captions_val5k.json'
+__C.INFERENCE.COCO_VAL_ANNFILE = 'captions_val5k.json'
 
-__C.INFERENCE.TEST_ANNFILE = 'captions_test5k.json'
+__C.INFERENCE.COCO_TEST_ANNFILE = 'captions_test5k.json'
+
+__C.INFERENCE.AIC_VAL_ANNFILE = 'captions_val5k.json'
+
+__C.INFERENCE.AIC_TEST_ANNFILE = 'captions_test5k.json'
 
 __C.INFERENCE.BEAM_SIZE = 1
 
