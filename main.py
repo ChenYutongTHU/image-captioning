@@ -64,13 +64,13 @@ class Trainer(object):
                         eval_annfile = cfg.INFERENCE.COCO_VAL_ANNFILE,
                         dataset_name = 'coco'
                     )
-                self.test_evaler[dataset_name] = Evaler(
-                    eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
-                    gv_feat = cfg.COCO_DATA_LOADER.TEST_GV_FEAT,
-                    att_feats = cfg.COCO_DATA_LOADER.TEST_ATT_FEATS,
-                    eval_annfile = cfg.INFERENCE.COCO_TEST_ANNFILE,
-                    dataset_name = 'coco'
-                )
+                # self.test_evaler[dataset_name] = Evaler(
+                #     eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
+                #     gv_feat = cfg.COCO_DATA_LOADER.TEST_GV_FEAT,
+                #     att_feats = cfg.COCO_DATA_LOADER.TEST_ATT_FEATS,
+                #     eval_annfile = cfg.INFERENCE.COCO_TEST_ANNFILE,
+                #     dataset_name = 'coco'
+                # )
             elif dataset_name=='aic':
                 self.val_evaler[dataset_name] = Evaler(
                         eval_ids = cfg.AIC_DATA_LOADER.VAL_ID,
@@ -79,13 +79,13 @@ class Trainer(object):
                         eval_annfile = cfg.INFERENCE.AIC_VAL_ANNFILE,
                         dataset_name = 'aic'
                     )
-                self.test_evaler[dataset_name] = Evaler(
-                    eval_ids = cfg.AIC_DATA_LOADER.TEST_ID,
-                    gv_feat = cfg.AIC_DATA_LOADER.TEST_GV_FEAT,
-                    att_feats = cfg.AIC_DATA_LOADER.TEST_ATT_FEATS,
-                    eval_annfile = cfg.INFERENCE.AIC_TEST_ANNFILE,
-                    dataset_name = 'aic'
-                )             
+                # self.test_evaler[dataset_name] = Evaler(
+                #     eval_ids = cfg.AIC_DATA_LOADER.TEST_ID,
+                #     gv_feat = cfg.AIC_DATA_LOADER.TEST_GV_FEAT,
+                #     att_feats = cfg.AIC_DATA_LOADER.TEST_ATT_FEATS,
+                #     eval_annfile = cfg.INFERENCE.AIC_TEST_ANNFILE,
+                #     dataset_name = 'aic'
+                # )             
         self.scorer = Scorer()
 
     def setup_logging(self):
@@ -159,7 +159,7 @@ class Trainer(object):
             img_dir=cfg.AIC_DATA_LOADER.TRAIN_IMG_DIR,  #train/val
             processedimg_dir=cfg.AIC_DATA_LOADER.TRAIN_PROCESSEDIMG_DIR
         )
-        self.dataset_dict = {'aic': self.aic_set}#, 'coco': self.coco_set}#{'coco': self.coco_set, 'aic': self.aic_set}
+        self.dataset_dict = {'aic': self.aic_set, 'coco': self.coco_set}#{'coco': self.coco_set, 'aic': self.aic_set}
         self.combined_set = combined_dataset.CombinedDataset(
             datasets_dict = self.dataset_dict
         )
@@ -170,10 +170,10 @@ class Trainer(object):
             self.distributed, epoch, self.combined_set)
 
     def eval(self, epoch):
-        # if (epoch + 1) % cfg.SOLVER.TEST_INTERVAL != 0:
-        #     return None
-        # if self.distributed and dist.get_rank() > 0:
-        #     return None
+        if (epoch + 1) % cfg.SOLVER.TEST_INTERVAL != 0:
+            return None
+        if self.distributed and dist.get_rank() > 0:
+            return None
         val_results, test_results = {},{}
         for dataset_name in self.dataset_dict:
             val_results[dataset_name] = self.val_evaler[dataset_name](self.model, 'val_' + str(epoch + 1))
@@ -181,14 +181,16 @@ class Trainer(object):
             self.logger.info('######## {} ########'.format(dataset_name.upper()))
             self.logger.info(str(val_results[dataset_name]))
              
-            test_results[dataset_name] = self.test_evaler[dataset_name](self.model,'test_' + str(epoch + 1))
-            self.logger.info('######## Epoch (TEST)' + str(epoch + 1) + ' ########')
-            self.logger.info('######## {} ########'.format(dataset_name.upper()))
-            self.logger.info(str(test_results[dataset_name]))
+            # test_results[dataset_name] = self.test_evaler[dataset_name](self.model,'test_' + str(epoch + 1))
+            # self.logger.info('######## Epoch (TEST)' + str(epoch + 1) + ' ########')
+            # self.logger.info('######## {} ########'.format(dataset_name.upper()))
+            # self.logger.info(str(test_results[dataset_name]))
 
         val = 0
         for score_type, weight in zip(cfg.SCORER.TYPES, cfg.SCORER.WEIGHTS):
             val -= val_res[score_type] * weight
+            self.writer.add_scalar(score_type, val_res[score_type], epoch)
+        self.writer.add_scalar('weighted valuation', val, epoch)
 #SCORER:
   # TYPES: ['CIDEr']
   # WEIGHTS: [1.0]
@@ -363,9 +365,11 @@ class Trainer(object):
                     dist.barrier()
                 if not self.distributed or self.args.local_rank == 0:
                     pbar(step)
+                break
         
             self.save_model(epoch)
             val = self.eval(epoch)
+
             self.optim.scheduler_step('Epoch', val)
             self.scheduled_sampling(epoch)
 

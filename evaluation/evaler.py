@@ -23,7 +23,7 @@ class Evaler(object):
 
         self.eval_ids = np.array(utils.load_lines(eval_ids))#np.array(utils.load_ids(eval_ids))
         self.eval_loader = data_loader.load_val(eval_ids, gv_feat, att_feats, dataset_name)
-        self.evaler = evaluation.create(cfg.INFERENCE.EVAL, eval_annfile) 
+        self.evaler = evaluation.create(dataset_name, eval_annfile) 
         self.dataset_name = dataset_name
 
     def make_kwargs(self, indices, ids, gv_feat, att_feats, att_mask):
@@ -63,12 +63,16 @@ class Evaler(object):
                 #     break
                 cnt += 1
                 #break #!!
-        eval_res = self.evaler.eval(results) #...
+        # if self.dataset_name=='coco':
+        #     eval_res = self.evaler.eval(results) #...
+        # else:
+        #     eval_res = None
+        eval_res = self.evaler.eval(results)
 
         result_folder = os.path.join(cfg.ROOT_DIR, 'result')
         if not os.path.exists(result_folder):
             os.mkdir(result_folder)
-        json.dump(results, open(os.path.join(result_folder, 'result_' + rname +'.json'), 'w'))
+        json.dump(results, open(os.path.join(result_folder, self.dataset_name+'+result_' + rname +'.json'), 'w'))
 
 
         model.train()

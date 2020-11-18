@@ -40,6 +40,8 @@ class CocoDataset(BasicDataset):
             split = split + 'in' #train
         feature_dir = os.path.join(self.att_feats_folder, '{}2014_output/features'.format(split))
         feature_path = os.path.join(feature_dir, '{}.npz'.format(name[:-4]))
+        # feature_dir =self.att_feats_folder #os.path.join(self.att_feats_folder, '{}2014_output/features'.format(split))
+        # feature_path = os.path.join(feature_dir, '{}.npz'.format(image_id))
         return feature_path
 
     def get_img_path(self, image_id):

@@ -2,8 +2,8 @@ from evaluation.coco_evaler import COCOEvaler
 from evaluation.AIC_evaler import AICEvaler
 
 __factory = {
-    'COCO': COCOEvaler,
-    'AIC': AICEvaler
+    'coco': COCOEvaler,
+    'aic': COCOEvaler
 }
 
 def names():

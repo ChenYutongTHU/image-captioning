@@ -31,12 +31,21 @@ class Tester(object):
 
         self.setup_logging()
         self.setup_network()
-        self.evaler = Evaler(
-            eval_ids = cfg.DATA_LOADER.TEST_ID,
-            gv_feat = cfg.DATA_LOADER.TEST_GV_FEAT,
-            att_feats = cfg.DATA_LOADER.TEST_ATT_FEATS,
-            eval_annfile = cfg.INFERENCE.TEST_ANNFILE
-        )
+        self.coco_evaler = Evaler(
+                    eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
+                    gv_feat = cfg.COCO_DATA_LOADER.TEST_GV_FEAT,
+                    att_feats = cfg.COCO_DATA_LOADER.TEST_ATT_FEATS,
+                    eval_annfile = cfg.INFERENCE.COCO_TEST_ANNFILE,
+                    dataset_name = 'coco'
+                )
+        self.aic_evaler = Evaler(
+                    eval_ids = cfg.AIC_DATA_LOADER.TEST_ID,
+                    gv_feat = cfg.AIC_DATA_LOADER.TEST_GV_FEAT,
+                    att_feats = cfg.AIC_DATA_LOADER.TEST_ATT_FEATS,
+                    eval_annfile = cfg.INFERENCE.AIC_TEST_ANNFILE,
+                    dataset_name = 'aic'
+                )     
+        self.evaler = {'coco': self.coco_evaler, 'aic': self.aic_evaler}        
 
     def setup_logging(self):
         self.logger = logging.getLogger(cfg.LOGGER_NAME)
@@ -66,9 +75,10 @@ class Tester(object):
             )
         
     def eval(self, epoch):
-        res = self.evaler(self.model, 'test_' + str(epoch))
-        self.logger.info('######## Epoch ' + str(epoch) + ' ########')
-        self.logger.info(str(res))
+        for dataset_name in self.evaler:
+            res = self.evaler[dataset_name](self.model, 'test_' + str(epoch))
+            self.logger.info('########{} Epoch ' + str(epoch) + ' ########'.format(dataset_name))
+            self.logger.info(str(res))
 
     def snapshot_path(self, name, epoch):
         snapshot_folder = os.path.join(cfg.ROOT_DIR, 'snapshot')
