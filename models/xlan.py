@@ -39,7 +39,7 @@ class XLAN(AttBasicModel):
         state = kwargs[cfg.PARAM.STATE]
         gv_feat = kwargs[cfg.PARAM.GLOBAL_FEAT]
         p_att_feats = kwargs[cfg.PARAM.P_ATT_FEATS]
-        
+        output_attention = kwargs['output_attention'] if 'output_attention' in kwargs.keys() else False
         if gv_feat.shape[-1] == 1:  # empty gv_feat
             if att_mask is not None:
                 gv_feat = torch.sum(att_feats * att_mask.unsqueeze(-1), 1) / torch.sum(att_mask.unsqueeze(-1), 1)
@@ -48,10 +48,18 @@ class XLAN(AttBasicModel):
         xt = self.word_embed(wt)
         
         h_att, c_att = self.att_lstm(torch.cat([xt, gv_feat + self.ctx_drop(state[0][1])], 1), (state[0][0], state[1][0]))
-        att, _ = self.attention(h_att, att_feats, att_mask, p_att_feats, precompute=True)
+        attention_output = self.attention(h_att, att_feats, att_mask, p_att_feats, 
+            precompute=True, output_attention=output_attention)
+        att = attention_output[0]
+        if output_attention:
+            attention = attention_output[2]
         ctx_input = torch.cat([att, h_att], 1)
 
         output = self.att2ctx(ctx_input)
         state = [torch.stack((h_att, output)), torch.stack((c_att, state[1][1]))]
 
-        return output, state
+        if output_attention:
+            #print('xlan\n', type(attention), len(attention), len(attention[0]))
+            return [output, state, attention]
+        else:
+            return [output, state]

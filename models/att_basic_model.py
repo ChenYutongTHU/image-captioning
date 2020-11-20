@@ -143,33 +143,40 @@ class AttBasicModel(BasicModel):
         return outputs
 
     def get_logprobs_state(self, **kwargs):
-        output, state = self.Forward(**kwargs)
-        logprobs = F.log_softmax(self.logit(output), dim=1) #B, V
-        return logprobs, state
+        Forward_output = self.Forward(**kwargs)
+        logprobs = F.log_softmax(self.logit(Forward_output[0]), dim=1) #B, V
+        state = Forward_output[1]
+        #print('get_logprobs_state\n',type(Forward_output[2]), len(Forward_output[2]),len(Forward_output[2][0]))
+        if kwargs['output_attention']:
+            return [logprobs, state, Forward_output[2]]
+        else:
+            return [logprobs, state]
 
     def _expand_state(self, batch_size, beam_size, cur_beam_size, state, selected_beam):
         shape = [int(sh) for sh in state.shape]#[#Layer, B, d]
         beam = selected_beam  #B, beam_size
         for _ in shape[2:]:
-            beam = beam.unsqueeze(-1)  
+            beam = beam.unsqueeze(-1)   #B, beam_size, 1
         #beam B, beam_size, 1
         beam = beam.unsqueeze(0) #1, B, beam_size, 1
         
         state = torch.gather(
-            state.view(*([shape[0], batch_size, cur_beam_size] + shape[2:])), 2,
-            beam.expand(*([shape[0], batch_size, beam_size] + shape[2:]))
+            state.view(*([shape[0], batch_size, cur_beam_size] + shape[2:])), 2, ##Layer, B, cur_beam_size, d
+            beam.expand(*([shape[0], batch_size, beam_size] + shape[2:])) ##Layer, B, beam_size, d
         )
         state = state.view(*([shape[0], -1, ] + shape[2:]))
         return state
 
     # the beam search code is inspired by https://github.com/aimagelab/meshed-memory-transformer
     def decode_beam(self, **kwargs):
+        #print('decode beam!')
         gv_feat, att_feats, att_mask, p_att_feats = self.preprocess(**kwargs)
-        
+        att_mask0 = att_mask
         beam_size = kwargs['BEAM_SIZE']
+        output_attention = kwargs['output_attention']
         batch_size = att_feats.size(0)
         seq_logprob = torch.zeros((batch_size, 1, 1)).cuda()
-        log_probs = []
+        log_probs, attention_scores = [], []
         selected_words = None
         seq_mask = torch.ones((batch_size, beam_size, 1)).cuda()
 
@@ -186,7 +193,14 @@ class AttBasicModel(BasicModel):
 
             kwargs[cfg.PARAM.WT] = wt
             kwargs[cfg.PARAM.STATE] = state
-            word_logprob, state = self.get_logprobs_state(**kwargs)# word_logprob B, #V
+            logprobs_state_output = self.get_logprobs_state(**kwargs)# word_logprob B, #V
+            #print(len(logprobs_state_output))
+            #print(logprobs_state_output[0].shape, logprobs_state_output[1].shape)
+            word_logprob, state = logprobs_state_output[0], logprobs_state_output[1]
+            if output_attention:
+                attention_score = logprobs_state_output[2][-1] #[(36,8,67)] the last layer
+                attention_score = attention_score.view(batch_size, -1, 
+                    attention_score.shape[1], attention_score.shape[2])
             word_logprob = word_logprob.view(batch_size, cur_beam_size, -1)
             candidate_logprob = seq_logprob + word_logprob # B,1,1 + B,1,#V
 
@@ -204,11 +218,32 @@ class AttBasicModel(BasicModel):
                 candidate_logprob = seq_mask * candidate_logprob + old_seq_logprob * (1 - seq_mask)
 
             selected_idx, selected_logprob = self.select(batch_size, beam_size, t, candidate_logprob)
-            selected_beam = selected_idx / candidate_logprob.shape[-1]
+            selected_beam = selected_idx / candidate_logprob.shape[-1] #B, bs
+            #print('selected_beam', selected_beam.shape, selected_beam[0])
             selected_words = selected_idx - selected_beam * candidate_logprob.shape[-1]
-
+            #print('selected_words', selected_words.shape, selected_words[0]) #B, bs
+            #input()
             for s in range(len(state)):
+                #print('state shape before expand {}'.format(state[s].shape))
                 state[s] = self._expand_state(batch_size, beam_size, cur_beam_size, state[s], selected_beam)
+                # print('state shape after expand {}'.format(state[s].shape))
+                # input()
+            #for a in range(len(attention_score)):
+            selected_beam_ex = selected_beam.unsqueeze(-1).unsqueeze(-1).expand(batch_size, beam_size, attention_score.shape[-2], attention_score.shape[-1])
+            this_word_attention_score = torch.gather(attention_score, 1, selected_beam_ex)
+            #print('this word attention score shape {}'.format(this_word_attention_score.shape))
+            attention_scores = list(
+                torch.gather(a, 1, selected_beam_ex) for a in attention_scores)
+            attention_scores.append(this_word_attention_score)#B, bs, H,
+
+            # def debug(attention_scores, selected_beam):
+            #     b = 0
+            #     print('selected_beam {}'.format(selected_beam[b]))
+            #     print('attention_scores \n {}'.format( \
+            #         [a[b, :, 0, :3] \
+            #             for a in attention_scores]))
+            # debug(attention_scores, selected_beam)
+            # input()
 
             seq_logprob = selected_logprob.unsqueeze(-1)# B,beam_size,1
             seq_mask = torch.gather(seq_mask, 1, selected_beam.unsqueeze(-1)) #B, beam_size, 1
@@ -244,7 +279,20 @@ class AttBasicModel(BasicModel):
         outputs = outputs.contiguous()[:, 0]
         log_probs = log_probs.contiguous()[:, 0]
 
-        return outputs, log_probs
+
+        if output_attention:
+            sort_idx_ex = sort_idxs.unsqueeze(-1).unsqueeze(-1) #B, bs, 1 -> B, bs, 1, 1, 1
+            attention_scores = torch.stack(attention_scores, -1) #B,bs,H,N,T
+            sort_idx_ex  = sort_idx_ex.expand(batch_size, beam_size, 
+                attention_scores.shape[-3], attention_scores.shape[-2], cfg.MODEL.SEQ_LEN)
+            #print(attention_scores.shape, sort_idx_ex.shape)
+            attention_scores = torch.gather(attention_scores, 1, sort_idx_ex) #B, bs, H,N,T
+            attention_scores = attention_scores.contiguous()[:,0] # B,H,N,T
+            #print(attention_scores.shape, att_mask0.shape)
+            #input()
+            return outputs, log_probs, attention_scores, att_mask0
+        else:
+            return outputs, log_probs
 
     # For the experiments of X-LAN, we use the following beam search code, 
     # which achieves slightly better results but much slower.

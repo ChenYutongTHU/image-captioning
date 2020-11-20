@@ -33,19 +33,25 @@ class LowRankBilinearLayer(nn.Module):
         mask=None, 
         value1=None, 
         value2=None, 
-        precompute=False
+        precompute=False,
+        output_attention=False
     ):    
-        x = self.encoder_attn(
+        #print('LowRankBilinearLayer forward')
+        lowrank_output = self.encoder_attn(
             query=x,
             key=key if key is not None else x,
             mask=mask,
             value1=value1 if value1 is not None else x,
             value2=value2 if value2 is not None else x,
-            precompute=precompute
+            precompute=precompute,
+            output_attention=output_attention
         )
         if self.dropout is not None:
-            x = self.dropout(x)
-        return x
+            x = self.dropout(lowrank_output[0])
+        if output_attention:
+            return  x, lowrank_output[1]
+        else:
+            return x
 
     def precompute(self, key, value2):
         return self.encoder_attn.precompute(key, value2)
@@ -143,7 +149,8 @@ class LowRankBilinearDecBlock(nn.Module):
             value2s.append(v)
         return torch.cat(keys, dim=-1), torch.cat(value2s, dim=-1)
 
-    def forward(self, gv_feat, att_feats, att_mask, p_att_feats=None, precompute=False):
+    def forward(self, gv_feat, att_feats, att_mask, p_att_feats=None, precompute=False, output_attention=False):
+        #print('LowRankBilinearDecBlock forward')
         if precompute == True:
             dim = p_att_feats.size()[-1]
             keys = p_att_feats.narrow(-1, 0, dim // 2)
@@ -157,14 +164,25 @@ class LowRankBilinearDecBlock(nn.Module):
                 gv_feat = torch.mean(att_feats, 1)
 
         feat_arr = [gv_feat]
+        attentions = []
+         #25, 1024
         for i, layer in enumerate(self.layers):
             key = keys.narrow(-1, i * dim, dim) if precompute else att_feats
             value2 = value2s.narrow(-1, i * dim, dim) if precompute else att_feats
-                            
-            gv_feat = layer(gv_feat, key, att_mask, gv_feat, value2, precompute)
+            #print('keyshape {}   att_mask {} value2 {}'.format(key.shape, att_mask.shape, value2.shape))
+            # key(B, 8(H), N(40/51), 128) mask(B25, N40/51) value2 (B, 8(H), N(40/51), 128)
+            if output_attention:
+                gv_feat, attention = layer(gv_feat, key, att_mask, gv_feat, value2, precompute, output_attention)
+                attentions.append(attention)
+            else:
+                gv_feat  = layer(gv_feat, key, att_mask, gv_feat, value2, precompute, output_attention)
             feat_arr.append(gv_feat)
 
         gv_feat = torch.cat(feat_arr, dim=-1)
         gv_feat = self.proj(gv_feat)
         gv_feat = self.layer_norm(gv_feat)
-        return gv_feat, att_feats
+        if output_attention:
+            #print('LowRankBilinearDecBlock\n', type(attentions), len(attentions), len(attentions[0]))
+            return [gv_feat, att_feats, attentions]
+        else:
+            return [gv_feat, att_feats]

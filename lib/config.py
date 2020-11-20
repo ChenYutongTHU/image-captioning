@@ -392,6 +392,8 @@ __C.INFERENCE.GREEDY_DECODE = True # Greedy decode or sample decode
 
 __C.INFERENCE.COCO_PATH = '../coco_caption'
 
+__C.INFERENCE.OUTPUT_ATTENTION = True
+
 # ---------------------------------------------------------------------------- #
 # Misc options
 # ---------------------------------------------------------------------------- #

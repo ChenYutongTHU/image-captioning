@@ -63,10 +63,10 @@ class LowRank(nn.Module):
 
     # query -- batch_size * qdim
     # value -- batch_size * att_num * vdim
-    def forward(self, query, key, mask, value1, value2, precompute=False):
+    def forward(self, query, key, mask, value1, value2, precompute=False, output_attention=False):
         batch_size = query.size()[0]
         q = self.in_proj_q(query)
-        v1 = self.in_proj_v1(value1)
+        v1 = self.in_proj_v1(value1)# value1 query
 
         q = q.view(batch_size, self.num_heads, self.head_dim)
         v1 = v1.view(batch_size, self.num_heads, self.head_dim)
@@ -83,9 +83,14 @@ class LowRank(nn.Module):
             v2 = value2
 
         attn_map = q.unsqueeze(-2) * k
-        attn = self.attn_net(attn_map, mask, v1, v2)
+        attn_output = self.attn_net(attn_map, mask, v1, v2, output_attention)
+        attn = attn_output[0]
         attn = attn.view(batch_size, self.num_heads * self.head_dim)
-        return attn
+        if output_attention:
+            output = [attn, attn_output[1]]
+        else:
+            output = [attn]
+        return output
 
     # query -- batch_size * seq_num * qdim
     # value -- batch_size * att_num * vdim

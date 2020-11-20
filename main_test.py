@@ -23,6 +23,13 @@ from evaluation.evaler import Evaler
 from scorer.scorer import Scorer
 from lib.config import cfg, cfg_from_file
 
+import sys
+sys.path.append(cfg.INFERENCE.COCO_PATH)
+print(cfg.INFERENCE.COCO_PATH)
+from pycocotools.coco import COCO
+from pycocoevalcap.eval import COCOEvalCap
+
+
 class Tester(object):
     def __init__(self, args):
         super(Tester, self).__init__()
@@ -48,6 +55,7 @@ class Tester(object):
         self.evaler = {'coco': self.coco_evaler, 'aic': self.aic_evaler}        
 
     def setup_logging(self):
+        cfg.LOGGER_NAME = 'test_{}_log'.format(self.args.resume)
         self.logger = logging.getLogger(cfg.LOGGER_NAME)
         self.logger.setLevel(logging.INFO)
         
@@ -77,7 +85,7 @@ class Tester(object):
     def eval(self, epoch):
         for dataset_name in self.evaler:
             res = self.evaler[dataset_name](self.model, 'test_' + str(epoch))
-            self.logger.info('########{} Epoch ' + str(epoch) + ' ########'.format(dataset_name))
+            self.logger.info('########{} Epoch '.format(dataset_name) + str(epoch) + ' ########'.format(dataset_name))
             self.logger.info(str(res))
 
     def snapshot_path(self, name, epoch):

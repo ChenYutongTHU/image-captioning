@@ -9,6 +9,14 @@ import json
 import cv2 
 from datasets.basic_dataset import BasicDataset
 
+import sys
+from lib.config import cfg
+sys.path.append(cfg.INFERENCE.COCO_PATH)
+print(cfg.INFERENCE.COCO_PATH)
+from pycocotools.coco import COCO
+from pycocoevalcap.eval import COCOEvalCap
+
+
 class CocoDataset(BasicDataset):
     def __init__(
         self, 
@@ -32,6 +40,20 @@ class CocoDataset(BasicDataset):
             self.id2name = json.load(f)
 
          
+    def get_vginstance(self, image_id):
+        name = self.id2name[image_id]
+        split = name[5:8]
+        if split == 'tra':
+            split = split + 'in' #train
+        feature_dir = os.path.join(self.att_feats_folder, '{}2014_output/information'.format(split))
+        feature_path = os.path.join(feature_dir, '{}.pkl'.format(name[:-4]))
+        import sys
+        sys.path.append(cfg.INFERENCE.COCO_PATH)
+        #print(cfg.INFERENCE.COCO_PATH)
+        from pycocotools.coco import COCO
+        from pycocoevalcap.eval import COCOEvalCap
+        instance = pickle.load(open(feature_path, 'rb'), encoding='bytes')
+        return instance
 
     def get_feature_path(self, image_id):
         name = self.id2name[image_id]
@@ -54,6 +76,7 @@ class CocoDataset(BasicDataset):
         img_dir = os.path.join(self.att_feats_folder, '{}2014'.format(split))
         img_path = os.path.join(img_dir, name)
         return img_path   
+
 
     def get_annotatedimg_path(self, image_id):
         name = self.id2name[image_id]
