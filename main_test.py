@@ -26,8 +26,8 @@ from lib.config import cfg, cfg_from_file
 import sys
 sys.path.append(cfg.INFERENCE.COCO_PATH)
 print(cfg.INFERENCE.COCO_PATH)
-from pycocotools.coco import COCO
-from pycocoevalcap.eval import COCOEvalCap
+from my_pycocotools.coco import COCO
+from my_pycocoevalcap.eval import COCOEvalCap
 
 
 class Tester(object):
@@ -38,21 +38,31 @@ class Tester(object):
 
         self.setup_logging()
         self.setup_network()
-        self.coco_evaler = Evaler(
-                    eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
-                    gv_feat = cfg.COCO_DATA_LOADER.TEST_GV_FEAT,
-                    att_feats = cfg.COCO_DATA_LOADER.TEST_ATT_FEATS,
-                    eval_annfile = cfg.INFERENCE.COCO_TEST_ANNFILE,
-                    dataset_name = 'coco'
-                )
-        self.aic_evaler = Evaler(
-                    eval_ids = cfg.AIC_DATA_LOADER.TEST_ID,
-                    gv_feat = cfg.AIC_DATA_LOADER.TEST_GV_FEAT,
-                    att_feats = cfg.AIC_DATA_LOADER.TEST_ATT_FEATS,
-                    eval_annfile = cfg.INFERENCE.AIC_TEST_ANNFILE,
-                    dataset_name = 'aic'
-                )     
-        self.evaler = {'aic': self.aic_evaler,'coco': self.coco_evaler,}        
+        if self.args.test_raw_image:
+            self.raw_evaler = Evaler(
+                        eval_ids = cfg.RAW_DATA_LOADER.TEST_IMG_DIR,
+                        gv_feat = None, 
+                        att_feats = cfg.RAW_DATA_LOADER.TEST_ATT_FEATS,
+                        dataset_name = 'raw',
+                        eval_annfile = None
+                    )
+            self.evaler = {'raw': self.raw_evaler}
+        else:
+            self.coco_evaler = Evaler(
+                        eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
+                        gv_feat = cfg.COCO_DATA_LOADER.TEST_GV_FEAT,
+                        att_feats = cfg.COCO_DATA_LOADER.TEST_ATT_FEATS,
+                        eval_annfile = cfg.INFERENCE.COCO_TEST_ANNFILE,
+                        dataset_name = 'coco'
+                    )
+            self.aic_evaler = Evaler(
+                        eval_ids = cfg.AIC_DATA_LOADER.TEST_ID,
+                        gv_feat = cfg.AIC_DATA_LOADER.TEST_GV_FEAT,
+                        att_feats = cfg.AIC_DATA_LOADER.TEST_ATT_FEATS,
+                        eval_annfile = cfg.INFERENCE.AIC_TEST_ANNFILE,
+                        dataset_name = 'aic'
+                    )     
+            self.evaler = {'aic': self.aic_evaler,'coco': self.coco_evaler}        
 
     def setup_logging(self):
         cfg.LOGGER_NAME = 'test_{}_log'.format(self.args.resume)
@@ -100,6 +110,7 @@ def parse_args():
     parser.add_argument('--folder', dest='folder', default=None, type=str)
     parser.add_argument("--resume", type=int, default=-1)
     parser.add_argument('--config', default='config.yml')
+    parser.add_argument('--test_raw_image', action='store_true', default=False)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -114,7 +125,11 @@ if __name__ == '__main__':
     print(args)
 
     if args.folder is not None:
-        cfg_from_file(os.path.join(args.folder, args.config))
+        if not os.path.exists(args.config):
+            config_path = os.path.join(args.folder, args.config)
+        else:
+            config_path = args.config
+        cfg_from_file(config_path)
     cfg.ROOT_DIR = args.folder
 
     tester = Tester(args)

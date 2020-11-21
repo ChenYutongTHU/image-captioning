@@ -16,15 +16,18 @@ class Evaler(object):
         eval_ids,
         gv_feat,
         att_feats,
-        eval_annfile,
-        dataset_name
+        dataset_name,
+        eval_annfile=None,
     ):
         super(Evaler, self).__init__()
         self.vocab = utils.load_vocab(cfg.INFERENCE.VOCAB)
-
-        self.eval_ids = np.array(utils.load_lines(eval_ids))#np.array(utils.load_ids(eval_ids))
+        if dataset_name == 'raw':
+            self.eval_ids = np.array([img.split('.')[0] for img in os.listdir(eval_ids)])
+            self.evaler = None
+        else:
+            self.eval_ids = np.array(utils.load_lines(eval_ids))#np.array(utils.load_ids(eval_ids))
+            self.evaler = evaluation.create(dataset_name, eval_annfile) 
         self.eval_loader = data_loader.load_val(eval_ids, gv_feat, att_feats, dataset_name)
-        self.evaler = evaluation.create(dataset_name, eval_annfile) 
         self.dataset_name = dataset_name
 
     def make_kwargs(self, indices, ids, gv_feat, att_feats, att_mask, output_attention=False):
@@ -110,12 +113,10 @@ class Evaler(object):
                 #     break
                 cnt += 1
                 #break #!!
-        # if self.dataset_name=='coco':
-        #     eval_res = self.evaler.eval(results) #...
-        # else:
-        #     eval_res = None
-        eval_res = self.evaler.eval(results)
-
+        if self.evaler:
+            eval_res = self.evaler.eval(results)
+        else:
+            eval_res = None
         result_folder = os.path.join(cfg.ROOT_DIR, 'result')
         if not os.path.exists(result_folder):
             os.mkdir(result_folder)

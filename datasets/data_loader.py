@@ -2,7 +2,7 @@ import os
 import torch
 from torchvision import transforms
 from lib.config import cfg
-from datasets import coco_dataset, aic_dataset, combined_dataset
+from datasets import coco_dataset, aic_dataset, combined_dataset, raw_dataset
 import samplers.distributed
 import numpy as np
 def padding_sentences(sentences, max_length=None, padding_index=0):
@@ -133,6 +133,13 @@ def load_val(image_ids_path, gv_feat_path, att_feats_folder, dataset_name):
             max_feat_num = cfg.AIC_DATA_LOADER.MAX_FEAT,#-1
             img_dir=cfg.AIC_DATA_LOADER.VAL_IMG_DIR,  #val/test the same
             processedimg_dir=cfg.AIC_DATA_LOADER.VAL_PROCESSEDIMG_DIR  #val/test the same
+        )
+    elif dataset_name=='raw':
+        dataset = raw_dataset.RawDataset(
+            img_dir = image_ids_path,  #image directory
+            att_feats_folder = att_feats_folder,  #
+            max_feat_num = cfg.RAW_DATA_LOADER.MAX_FEAT,
+            processedimg_dir = cfg.RAW_DATA_LOADER.TEST_PROCESSEDIMG_DIR
         )
 
     loader = torch.utils.data.DataLoader(

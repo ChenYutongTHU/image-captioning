@@ -152,6 +152,20 @@ __C.AIC_DATA_LOADER.VAL_IMG_DIR = ''
 __C.AIC_DATA_LOADER.TEST_PROCESSEDIMG_DIR = ''
 
 __C.AIC_DATA_LOADER.TEST_IMG_DIR = ''
+
+
+# ---------------------------------------------------------------------------- #
+# Raw Data loader options
+# ---------------------------------------------------------------------------- #
+__C.RAW_DATA_LOADER = edict()
+
+__C.RAW_DATA_LOADER.TEST_IMG_DIR = ''
+
+__C.RAW_DATA_LOADER.TEST_ATT_FEATS = ''
+
+__C.RAW_DATA_LOADER.MAX_FEAT = -1
+
+__C.RAW_DATA_LOADER.TEST_PROCESSEDIMG_DIR = ''
 # ---------------------------------------------------------------------------- #
 # Model options
 # ---------------------------------------------------------------------------- #

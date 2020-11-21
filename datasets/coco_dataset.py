@@ -13,8 +13,8 @@ import sys
 from lib.config import cfg
 sys.path.append(cfg.INFERENCE.COCO_PATH)
 print(cfg.INFERENCE.COCO_PATH)
-from pycocotools.coco import COCO
-from pycocoevalcap.eval import COCOEvalCap
+from my_pycocotools.coco import COCO
+from my_pycocoevalcap.eval import COCOEvalCap
 
 
 class CocoDataset(BasicDataset):
