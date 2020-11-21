@@ -45,14 +45,9 @@ class CocoDataset(BasicDataset):
         split = name[5:8]
         if split == 'tra':
             split = split + 'in' #train
-        feature_dir = os.path.join(self.att_feats_folder, '{}2014_output/information'.format(split))
+        feature_dir = os.path.join(self.att_feats_folder, '{}2014_output/information_2'.format(split))
         feature_path = os.path.join(feature_dir, '{}.pkl'.format(name[:-4]))
-        import sys
-        sys.path.append(cfg.INFERENCE.COCO_PATH)
-        #print(cfg.INFERENCE.COCO_PATH)
-        from pycocotools.coco import COCO
-        from pycocoevalcap.eval import COCOEvalCap
-        instance = pickle.load(open(feature_path, 'rb'), encoding='bytes')
+        instance = pickle.load(open(feature_path, 'rb'))
         return instance
 
     def get_feature_path(self, image_id):

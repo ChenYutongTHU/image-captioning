@@ -31,6 +31,13 @@ class AICDataset(BasicDataset):
         feature_path = os.path.join(self.att_feats_folder, '{}.npz'.format(image_id))
         return feature_path
 
+    def get_vginstance(self, image_id):
+        feature_dir = os.path.join(self.att_feats_folder, '../information_2')
+        feature_path = os.path.join(feature_dir, '{}.pkl'.format(image_id))
+        instance = pickle.load(open(feature_path, 'rb'))
+        return instance
+
+
     def get_img_path(self, image_id):
         img_path = os.path.join(self.img_dir, '{}.jpg'.format(image_id))
         return img_path

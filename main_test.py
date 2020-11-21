@@ -52,7 +52,7 @@ class Tester(object):
                     eval_annfile = cfg.INFERENCE.AIC_TEST_ANNFILE,
                     dataset_name = 'aic'
                 )     
-        self.evaler = {'coco': self.coco_evaler, 'aic': self.aic_evaler}        
+        self.evaler = {'aic': self.aic_evaler,'coco': self.coco_evaler,}        
 
     def setup_logging(self):
         cfg.LOGGER_NAME = 'test_{}_log'.format(self.args.resume)
@@ -84,7 +84,7 @@ class Tester(object):
         
     def eval(self, epoch):
         for dataset_name in self.evaler:
-            res = self.evaler[dataset_name](self.model, 'test_' + str(epoch))
+            res = self.evaler[dataset_name](self.model, 'test_' + str(epoch), output_attention=cfg.INFERENCE.OUTPUT_ATTENTION)
             self.logger.info('########{} Epoch '.format(dataset_name) + str(epoch) + ' ########'.format(dataset_name))
             self.logger.info(str(res))
 
