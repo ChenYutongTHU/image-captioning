@@ -28,7 +28,7 @@ Please cite with the following BibTeX:
 * [coco-caption](https://github.com/ruotianluo/coco-caption)
 
 ## Data preparation
-1. Download [coco-caption](https://github.com/ruotianluo/coco-caption), setup the path of __C.INFERENCE.COCO_PATH in lib/config.py and **modify the directory name [pycocoevalcap]() and [pycocotools]() to [my_pycocoevalcap]() and [my_pycocotools]()**
+1. Download [coco-caption](https://github.com/ruotianluo/coco-caption), setup the path of __C.INFERENCE.COCO_PATH in lib/config.py and **modify the directory name 'pycocoevalcap','pycocotools' to 'my_pycocoevalcap','my_pycocotools'**.
 
 ## Training
 Only X-LAN model can be trained now :P.
@@ -57,7 +57,7 @@ CUDA_VISIBIE_DEVICES=0 python3 main_test.py \
 Running this command will output 
 1. caption results as json file in '$TRAINING_DIR/result'
 2. Multi-headed attention visualization in '$TRAINING_DIR/result/attention_visualization' for the first 10 images in the testing set.
-3. Testing scores of Bleu1-4, METEOR, ROUGE and CIDER. (SPICE is turn off to save computational cost), written in '$TRAINING_DIR/log.txt'
+3. Testing scores of Bleu1-4, METEOR, ROUGE and CIDER, written in '$TRAINING_DIR/log.txt'. (SPICE is turned off to save computational cost)
 
 To visualize predicted result paired with input image, 
 ```
@@ -75,10 +75,10 @@ python generate_result.py \
 
 python -m http.server 8009 --directory ./coco
 ```
-See more details in [/data/disk1/private/FXData/visualize/visualize_coco.sh]() and [/data/disk1/private/FXData/visualize/visualize_aic.sh]() 
+See more details in '/data/disk1/private/FXData/visualize/visualize_coco.sh' and '/data/disk1/private/FXData/visualize/visualize_aic.sh'.
 
 ### Raw images as input
-To generate caption for raw images, place all raw images in [./test] directory and run the following commands
+To generate caption for raw images, place all raw images in './test' directory and run the following commands
 ```
 export CUDA_VISIBLE_DEVICES='1'
 export BASE_DIR='the path to image-captioning repository'
@@ -95,7 +95,7 @@ python3 main_test.py \
 --test_raw_image \
 --folder=$MODEL_DIR --resume 57 --config="${MODEL_DIR}/config_coco_warmup10k.yml" 
 ```
-Then all results are output in [./test] similarly as for COCO/AIC test images.
+Then all results are output in './test' similarly as for COCO/AIC test images.
 
 
 ## Acknowledgements
