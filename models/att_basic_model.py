@@ -229,12 +229,13 @@ class AttBasicModel(BasicModel):
                 # print('state shape after expand {}'.format(state[s].shape))
                 # input()
             #for a in range(len(attention_score)):
-            selected_beam_ex = selected_beam.unsqueeze(-1).unsqueeze(-1).expand(batch_size, beam_size, attention_score.shape[-2], attention_score.shape[-1])
-            this_word_attention_score = torch.gather(attention_score, 1, selected_beam_ex)
-            #print('this word attention score shape {}'.format(this_word_attention_score.shape))
-            attention_scores = list(
-                torch.gather(a, 1, selected_beam_ex) for a in attention_scores)
-            attention_scores.append(this_word_attention_score)#B, bs, H,
+            if output_attention:
+                selected_beam_ex = selected_beam.unsqueeze(-1).unsqueeze(-1).expand(batch_size, beam_size, attention_score.shape[-2], attention_score.shape[-1])
+                this_word_attention_score = torch.gather(attention_score, 1, selected_beam_ex)
+                #print('this word attention score shape {}'.format(this_word_attention_score.shape))
+                attention_scores = list(
+                    torch.gather(a, 1, selected_beam_ex) for a in attention_scores)
+                attention_scores.append(this_word_attention_score)#B, bs, H,
 
             # def debug(attention_scores, selected_beam):
             #     b = 0
