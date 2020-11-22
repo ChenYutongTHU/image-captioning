@@ -28,46 +28,75 @@ Please cite with the following BibTeX:
 * [coco-caption](https://github.com/ruotianluo/coco-caption)
 
 ## Data preparation
-1. Download the [bottom up features](https://github.com/peteanderson80/bottom-up-attention) and convert them to npz files
-```
-python2 tools/create_feats.py --infeats bottom_up_tsv --outfolder ./mscoco/feature/up_down_10_100
-```
-
-2. Download the [annotations](https://drive.google.com/open?id=1i5YJRSZtpov0nOtRyfM0OS1n0tPCGiCS) into the mscoco folder. More details about data preparation can be referred to [self-critical.pytorch](https://github.com/ruotianluo/self-critical.pytorch)
-
-3. Download [coco-caption](https://github.com/ruotianluo/coco-caption) and setup the path of __C.INFERENCE.COCO_PATH in lib/config.py
-
-4. The pretrained models and results can be downloaded [here](https://drive.google.com/open?id=1a7aINHtpQbIw5JbAc4yvC7I1V-tQSdzb).
-
-5. The pretrained SENet-154 model can be downloaded [here](https://drive.google.com/file/d/1CrWJcdKLPmFYVdVNcQLviwKGtAREjarR/view?usp=sharing).
+1. Download [coco-caption](https://github.com/ruotianluo/coco-caption), setup the path of __C.INFERENCE.COCO_PATH in lib/config.py and **modify the directory name [pycocoevalcap]() and [pycocotools]() to [my_pycocoevalcap]() and [my_pycocotools]()**
 
 ## Training
-### Train X-LAN model
+Only X-LAN model can be trained now :P.
+### Train X-LAN model on COCO only
 ```
-bash experiments/xlan/train.sh
+bash experiments/xlan/train_coco.sh
 ```
-
-### Train X-LAN model using self critical
-Copy the pretrained model into experiments/xlan_rl/snapshot and run the script
+### Train X-LAN model on both AIC and COCO 
 ```
-bash experiments/xlan_rl/train.sh
+bash experiments/xlan/train_aic_coco.sh
 ```
-
-### Train X-LAN transformer model
+## Tensorboard visualization
+To view curves of training loss and evaluation scores
 ```
-bash experiments/xtransformer/train.sh
-```
-
-### Train X-LAN transformer model using self critical
-Copy the pretrained model into experiments/xtransformer_rl/snapshot and run the script
-```
-bash experiments/xtransformer_rl/train.sh
+cd ./experiments/xlan
+tensorboard --logdir='./' --port=6006
 ```
 
 ## Evaluation
+### COCO & AIC testing set
 ```
-CUDA_VISIBLE_DEVICES=0 python3 main_test.py --folder experiments/model_folder --resume model_epoch
+export TRAINING_DIR='/data/disk1/private/FXData/Xlinear_models/train_coco_warmup10k'
+CUDA_VISIBIE_DEVICES=0 python3 main_test.py \
+--folder=$TRAINING_DIR --config=config_coco_warmup10k.yml --resume 57
 ```
+Running this command will output 
+1. caption results as json file in '$TRAINING_DIR/result'
+2. Multi-headed attention visualization in '$TRAINING_DIR/result/attention_visualization' for the first 10 images in the testing set.
+3. Testing scores of Bleu1-4, METEOR, ROUGE and CIDER. (SPICE is turn off to save computational cost), written in '$TRAINING_DIR/log.txt'
+
+To visualize predicted result paired with input image, 
+```
+cd /data/disk1/private/FXData/visualize
+
+export DIR='${TRAINING_DIR}/result'
+export FILE='coco+result_test_57.json'
+python generate_result.py \
+--directory=$DIR \
+--result_file=$FILE \
+--processedimg_dir=./vg_images \
+--img_dir=./images \
+--imgname_file=/data/disk1/private/FXData/COCO/coco_info/id2name_123287.json \
+--GT_file=/data/disk1/private/FXData/COCO/coco_info/GTcaptions_COCOval_40506.json
+
+python -m http.server 8009 --directory ./coco
+```
+See more details in [/data/disk1/private/FXData/visualize/visualize_coco.sh]() and [/data/disk1/private/FXData/visualize/visualize_aic.sh]() 
+
+### Raw images as input
+To generate caption for raw images, place all raw images in [./test] directory and run the following commands
+```
+export CUDA_VISIBLE_DEVICES='1'
+export BASE_DIR='the path to image-captioning repository'
+export VG_DIR='/data/disk1/private/FXData/VG/'
+export TEST_DIR="${BASE_DIR}/test"
+export MODEL_DIR='/data/disk1/private/FXData/Xlinear_models/train_coco_warmup10k'
+#model in MODEL_DIR/snapshot
+cd $VG_DIR
+python3 feature_api_yutong.py --img_folder="${TEST_DIR}/images" \
+ --output_dir="${TEST_DIR}/vg"
+
+cd $BASE_DIR
+python3 main_test.py \
+--test_raw_image \
+--folder=$MODEL_DIR --resume 57 --config="${MODEL_DIR}/config_coco_warmup10k.yml" 
+```
+Then all results are output in [./test] similarly as for COCO/AIC test images.
+
 
 ## Acknowledgements
 Thanks the contribution of [self-critical.pytorch](https://github.com/ruotianluo/self-critical.pytorch) and awesome PyTorch team.
