@@ -3,7 +3,7 @@ SEED: 1546884941.160048
 
 ############################ TRAIN ############################
 TRAIN:
-  BATCH_SIZE: 5
+  BATCH_SIZE: 10
   #################### SCHEDULED_SAMPLING ####################
   SCHEDULED_SAMPLING:
     START: 6
@@ -23,6 +23,11 @@ DATA_LOADER:
   SHUFFLE: True
   PIN_MEMORY: True
   DROP_LAST: True
+############################ RAW_DATA_LOADER ############################ 
+RAW_DATA_LOADER:
+  TEST_ATT_FEATS: './test/vg/features'
+  TEST_IMG_DIR: './test/images'
+  TEST_PROCESSEDIMG_DIR: './test/vg/images'
 ############################ COCO_DATA_LOADER ############################
 COCO_DATA_LOADER:
   NUM_WORKERS: 4
@@ -123,7 +128,7 @@ MODEL:
 
 ############################ SOLVER ############################  
 SOLVER:
-  BASE_LR: 0.0001
+  BASE_LR: 0.0005
   TYPE: 'ADAM'                 # 'ADAM', 'SGD', 'ADAGRAD', 'RMSPROP'
   MAX_EPOCH: 70
   MAX_ITER: -1
@@ -133,7 +138,7 @@ SOLVER:
   WEIGHT_DECAY_BIAS: 0.0
   BIAS_LR_FACTOR: 1
   DISPLAY: 20
-  TEST_INTERVAL: 5
+  TEST_INTERVAL: 1
   SNAPSHOT_ITERS: 1
 
   ########## SGD ##########
@@ -178,4 +183,3 @@ INFERENCE:
   AIC_TEST_ANNFILE: '/data/disk1/private/FXData/AIC/ann_file/aic_captions_test5k.json'  
   BEAM_SIZE: 3
   GREEDY_DECODE: True
-  OUTPUT_ATTENTION: True
