@@ -9,8 +9,8 @@ from lib.config import cfg
 from torch.nn.utils.weight_norm import weight_norm
 import time
 import cv2
-import numpy as np
-
+import matplotlib
+import matplotlib.pyplot as plt
 class ProgressBar(object):
     '''
     custom progress bar
@@ -80,6 +80,15 @@ def draw_bbox(img, boxes, cat_name):
         cv2.rectangle(img, (int(x), int(y)), (int(x+w), int(y+h)), color.tolist()[0], 2)
     return img
 
+def draw_hist(array, outfile, title, xlabel):
+    fig, ax = plt.subplots()
+    ax1.hist(array, bins=20,color=[(236/255,173/255,158/255)],density=True)
+    ax1.set_xlabel(xlabel)
+    ax1.set_ylabel('Density')
+    ax1.set_title(title)
+
+    plt.tight_layout()
+    plt.savefig(outfile)
 
 def activation(act):
     if act == 'RELU':

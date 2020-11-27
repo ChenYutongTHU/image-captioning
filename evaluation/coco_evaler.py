@@ -16,13 +16,16 @@ class COCOEvaler(object):
         if not os.path.exists(cfg.TEMP_DIR):
             os.makedirs(cfg.TEMP_DIR)
 
-    def eval(self, result):
+    def eval(self, result, imgToEval=True, SPICE=False):
         in_file = tempfile.NamedTemporaryFile(mode='w', delete=False, dir=cfg.TEMP_DIR)
         json.dump(result, in_file) #[{‘image_id’: int, 'caption':string},{'image_id':int,'caption':string}]
         in_file.close()
 
         cocoRes = self.coco.loadRes(in_file.name)
-        cocoEval = COCOEvalCap(self.coco, cocoRes)
+        cocoEval = COCOEvalCap(self.coco, cocoRes, SPICE=SPICE)
         cocoEval.evaluate()
         os.remove(in_file.name)
-        return cocoEval.eval
+        if imgToEval:
+            return cocoEval.eval, cocoEval.imgToEval
+        else:
+            return cocoEval.eval
