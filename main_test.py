@@ -39,15 +39,16 @@ class Tester(object):
         self.setup_logging()
         self.setup_network()
         if self.args.test_raw_image:
+            eval_ids = cfg.RAW_DATA_LOADER.TEST_IMG_DIR
             self.raw_evaler = Evaler(
-                        eval_ids = cfg.RAW_DATA_LOADER.TEST_IMG_DIR,
+                        eval_ids = eval_ids,
                         gv_feat = None, 
                         att_feats = cfg.RAW_DATA_LOADER.TEST_ATT_FEATS,
                         dataset_name = 'raw',
                         eval_annfile = None
                     )
             self.evaler = {'raw': self.raw_evaler}
-            self.output_list = np.array([img.split('.')[0] for img in os.listdir(eval_ids)])
+            #self.output_list = [img.split('.')[0] for img in os.listdir(eval_ids)]
         else:
             self.coco_evaler = Evaler(
                         eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
@@ -64,12 +65,13 @@ class Tester(object):
                         dataset_name = 'aic'
                     )     
             self.evaler = {'coco': self.coco_evaler,'aic': self.aic_evaler} 
-            if self.args.output_attention_list: 
-                with open(self.args.output_attention_list,'r') as f:
-                    self.output_list = f.readlines()
-                self.output_list = [id_.strip() for id_ in self.output_list]  
-            else:
-                self.output_list = None 
+            
+        if self.args.output_attention_list: 
+            with open(self.args.output_attention_list,'r') as f:
+                self.output_list = f.readlines()
+            self.output_list = [id_.strip() for id_ in self.output_list]  
+        else:
+            self.output_list = None 
 
     def setup_logging(self):
         cfg.LOGGER_NAME = 'test_{}_log'.format(self.args.resume)
@@ -122,6 +124,7 @@ def parse_args():
     parser.add_argument("--resume", type=int, default=-1)
     parser.add_argument('--config', default='config.yml')
     parser.add_argument('--test_raw_image', action='store_true', default=False)
+    parser.add_argument('--test_dir', type=str, default='')
     parser.add_argument('--output_attention_list', default=None)
     if len(sys.argv) == 1:
         parser.print_help()
@@ -142,6 +145,11 @@ if __name__ == '__main__':
             config_path = args.config
         cfg_from_file(config_path)
     cfg.ROOT_DIR = args.folder
+
+    if args.test_raw_image:
+        cfg.RAW_DATA_LOADER.TEST_IMG_DIR = os.path.join(args.test_dir, 'images')
+        cfg.RAW_DATA_LOADER.TEST_ATT_FEATS = os.path.join(args.test_dir, 'vg/features')
+        cfg.RAW_DATA_LOADER.TEST_PROCESSEDIMG_DIR = os.path.join(args.test_dir, 'vg/images')
 
     tester = Tester(args)
     tester.eval(args.resume)

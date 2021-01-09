@@ -47,7 +47,7 @@ class Evaler(object):
         kwargs['output_attention'] = output_attention
         return kwargs
     
-    def visualize_attention(self, result_folder, sents, attention_scores, att_mask, image_ids, number=10, output_list=None):
+    def visualize_attention(self, result_folder, sents, attention_scores, att_mask, image_ids, number=1, output_list=None):
         if not os.path.exists(result_folder):
             os.makedirs(result_folder)
 
@@ -65,7 +65,6 @@ class Evaler(object):
             tokens = sents[i].split(' ') #
             img0 = cv2.imread(self.eval_loader.dataset.get_img_path(image_ids[i]))
             vg_instance = self.eval_loader.dataset.get_vginstance(image_ids[i])
-
             for h in range(head_size):
                 score_h = score[h] # N,T
                 sub_folder = os.path.join(result_folder, image_ids[i], 'head'+str(h))
@@ -96,7 +95,7 @@ class Evaler(object):
                 #input()
 
 
-    def __call__(self, model, rname, output_attention=False, imgToEval=False, SPICE=False, output_list=None):
+    def __call__(self, model, rname, output_attention=False, imgToEval=True, SPICE=False, output_list=None):
         model.eval()
 
         result_folder = os.path.join(cfg.ROOT_DIR, 'result')
@@ -142,7 +141,7 @@ class Evaler(object):
                 #break #!!
         if self.evaler:
             eval_res, eval_res_img = self.evaler.eval(results, 
-                imgToEval=imgToEval, SPICE=SPICE)
+                imgToEval=imgToEval, SPICE=False)
         else:
             eval_res, eval_res_img = None, None
 
