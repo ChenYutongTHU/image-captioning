@@ -124,7 +124,7 @@ class Evaler(object):
                             seq, _ = model.module.decode_beam(**kwargs)
                     else:
                         seq, _ = model.module.decode(**kwargs) 
-                    sents = utils.decode_sequence(self.vocab, seq.data)
+                    sents = utils.decode_sequence(self.vocab, seq.data, lang='zh')
                     if output_attention:
                         self.visualize_attention(os.path.join(result_folder,'attention_'+rname), sents, 
                             attention_scores, att_mask, image_ids, output_list=output_list)
@@ -139,6 +139,7 @@ class Evaler(object):
                     cnt += 1
             json.dump(results, open(os.path.join(result_folder, self.dataset_name+'+result_' + rname +'.json'), 'w'))
                 #break #!!
+
         if self.evaler:
             eval_res, eval_res_img = self.evaler.eval(results, 
                 imgToEval=imgToEval, SPICE=False)

@@ -10,7 +10,7 @@ import argparse
 import numpy as np
 import cv2
 from tensorboardX import SummaryWriter
-
+import jieba
 import torch
 import torch.nn as nn
 import torch.multiprocessing as mp
@@ -335,7 +335,22 @@ class Trainer(object):
         self.optim.zero_grad()
 
         iteration = 0
-        for epoch in  range(cfg.SOLVER.MAX_EPOCH):
+        start_epoch = 0
+        if self.args.resume>0:
+            start_epoch = self.args.resume
+            self.setup_loader(start_epoch)
+            iteration = start_epoch*len(self.training_loader)
+            print('Start from epoch {} iteration {}'.format(start_epoch, iteration))
+            for i in range(start_epoch):
+                for j in range(iteration):
+                    self.optim.scheduler_step('Iter')
+                self.optim.scheduler_step('Epoch', None)
+            print('Learning rate {}'.format(self.optim.get_lr()))
+            print('Press enter to continue')
+            input()
+            print('')
+
+        for epoch in  range(start_epoch, cfg.SOLVER.MAX_EPOCH):
             if epoch == cfg.TRAIN.REINFORCEMENT.START:
                 self.rl_stage = True
             self.setup_loader(epoch)
@@ -346,8 +361,8 @@ class Trainer(object):
             losses = AverageMeter()
             if not self.distributed or self.args.local_rank == 0:
                 pbar = ProgressBar(n_total=len(self.training_loader), desc='Training')
-            val = self.eval(epoch)
-            print()
+                val = self.eval(epoch)
+                print()
             for step, (indices, input_seq, target_seq, gv_feat, att_feats, att_mask, image_ids, dataset_name) in enumerate(self.training_loader):
 
                 data_time.update(time.time() - start)
@@ -361,11 +376,13 @@ class Trainer(object):
                 kwargs = self.make_kwargs(indices, input_seq, target_seq, gv_feat, att_feats, att_mask)
                 loss, loss_info = self.forward(kwargs)
                 loss.backward()
-                utils.clip_gradient(self.optim.optimizer, self.model,
-                    cfg.SOLVER.GRAD_CLIP_TYPE, cfg.SOLVER.GRAD_CLIP)
-                self.optim.step()
-                self.optim.zero_grad()
-                self.optim.scheduler_step('Iter')
+
+                if step%cfg.DATA_LOADER.ACCUMULATE_STEPS == 0:                    
+                    utils.clip_gradient(self.optim.optimizer, self.model,
+                        cfg.SOLVER.GRAD_CLIP_TYPE, cfg.SOLVER.GRAD_CLIP)
+                    self.optim.step()
+                    self.optim.zero_grad()
+                    self.optim.scheduler_step('Iter')
                 
                 batch_time.update(time.time() - start)
                 start = time.time()
@@ -382,9 +399,9 @@ class Trainer(object):
             
             print()
             self.save_model(epoch)
-            #val = self.eval(epoch)
+           # val = self.eval(epoch)
 
-            self.optim.scheduler_step('Epoch', val)
+            self.optim.scheduler_step('Epoch', None)
             self.scheduled_sampling(epoch)
 
             if self.distributed:
@@ -404,11 +421,18 @@ def parse_args():
     #summary
     parser.add_argument('--summary_freq_scalar', type=int, help='per iter')
     parser.add_argument('--summary_freq_img2cap', type=int, help='per iter')
+
+    parser.add_argument('--accumulate_steps', type=int, help='a * n_gpu * bs_forward = 40')
+    parser.add_argument('--batchsize_forward', type=int, help='a * n_gpu * bs_forward = 40')
+
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
 
     args = parser.parse_args()
+    cfg.DATA_LOADER.ACCUMULATE_STEPS = args.accumulate_steps
+    cfg.TRAIN.BATCH_SIZE = args.batchsize_forward
     args.summary_dir = os.path.join(args.folder,'train_summary')
     #print(args.summary_dir)
     if not os.path.exists(args.summary_dir):

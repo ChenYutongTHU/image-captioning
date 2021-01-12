@@ -56,6 +56,8 @@ __C.DATA_LOADER.SHUFFLE = True
 
 __C.DATA_LOADER.SEQ_PER_IMG = 5
 
+__C.DATA_LOADER.ACCUMULATE_STEPS = 1
+
 # ---------------------------------------------------------------------------- #
 # coco Data loader options
 # ---------------------------------------------------------------------------- #

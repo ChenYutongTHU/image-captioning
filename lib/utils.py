@@ -11,6 +11,7 @@ import time
 import cv2
 import matplotlib
 import matplotlib.pyplot as plt
+import jieba
 class ProgressBar(object):
     '''
     custom progress bar
@@ -155,7 +156,7 @@ def clip_gradient(optimizer, model, grad_clip_type, grad_clip):
     else:
         raise NotImplementedError
 
-def decode_sequence(vocab, seq):
+def decode_sequence(vocab, seq, lang='en'):
     N, T = seq.size()
     sents = []
     for n in range(N):
@@ -165,7 +166,11 @@ def decode_sequence(vocab, seq):
             if ix == 0:
                 break
             words.append(vocab[ix])
-        sent = ' '.join(words)
+        if lang=='en':
+            sent = ' '.join(words)
+        else:
+            joint = ''.join(words).replace('@','')
+            sent = ' '.join(list(jieba.cut(joint, cut_all=False))) 
         sents.append(sent)
     return sents
 
