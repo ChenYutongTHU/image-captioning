@@ -23,7 +23,8 @@ class Evaler(object):
         gv_feat,
         att_feats,
         dataset_name,
-        eval_annfile=None
+        eval_annfile=None,
+        lang='zh'
     ):
         super(Evaler, self).__init__()
         self.vocab = utils.load_vocab(cfg.INFERENCE.VOCAB)
@@ -35,6 +36,7 @@ class Evaler(object):
             self.evaler = evaluation.create(dataset_name, eval_annfile) 
         self.eval_loader = data_loader.load_val(eval_ids, gv_feat, att_feats, dataset_name)
         self.dataset_name = dataset_name
+        self.lang = lang
 
     def make_kwargs(self, indices, ids, gv_feat, att_feats, att_mask, output_attention=False):
         kwargs = {}
@@ -111,20 +113,24 @@ class Evaler(object):
             results = []
             cnt = 0
             with torch.no_grad():
+                output_dist = []
                 for _, (indices, gv_feat, att_feats, att_mask, image_ids) in tqdm.tqdm(enumerate(self.eval_loader)):
                     ids = self.eval_ids[indices] #=image_id #str
                     gv_feat = gv_feat.cuda()
                     att_feats = att_feats.cuda()
                     att_mask = att_mask.cuda()
                     kwargs = self.make_kwargs(indices, ids, gv_feat, att_feats, att_mask, output_attention)
-                    if kwargs['BEAM_SIZE'] > 1:
+                    if kwargs['BEAM_SIZE'] >= 1:
                         if kwargs['output_attention']:
-                            seq, _, attention_scores, att_mask = model.module.decode_beam(**kwargs)
+                            seq, _, attention_scores, att_mask, distributions = model.module.decode_beam(**kwargs)
+                            output_dist.append(distributions.cpu().detach().numpy()) #B,L,#V
+                            # print(seq[0,:])
+                            # print(torch.argmax(distributions,dim=-1)[0])#B,L
                         else:
-                            seq, _ = model.module.decode_beam(**kwargs)
+                            seq, _, _ = model.module.decode_beam(**kwargs)
                     else:
                         seq, _ = model.module.decode(**kwargs) 
-                    sents = utils.decode_sequence(self.vocab, seq.data, lang='zh')
+                    sents = utils.decode_sequence(self.vocab, seq.data, lang=self.lang)
                     if output_attention:
                         self.visualize_attention(os.path.join(result_folder,'attention_'+rname), sents, 
                             attention_scores, att_mask, image_ids, output_list=output_list)
@@ -137,6 +143,9 @@ class Evaler(object):
                     # if cnt>=3:
                     #     break
                     cnt += 1
+            # output_dist = np.concatenate(output_dist, axis=0) # N,L,#V
+            # with open(os.path.join(result_folder, self.dataset_name+'+distribution_' + rname +'.npy'), 'wb') as f:
+            #     np.save(f, output_dist)
             json.dump(results, open(os.path.join(result_folder, self.dataset_name+'+result_' + rname +'.json'), 'w'))
                 #break #!!
 

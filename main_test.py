@@ -50,21 +50,27 @@ class Tester(object):
             self.evaler = {'raw': self.raw_evaler}
             #self.output_list = [img.split('.')[0] for img in os.listdir(eval_ids)]
         else:
-            self.coco_evaler = Evaler(
-                        eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
-                        gv_feat = cfg.COCO_DATA_LOADER.TEST_GV_FEAT,
-                        att_feats = cfg.COCO_DATA_LOADER.TEST_ATT_FEATS,
-                        eval_annfile = cfg.INFERENCE.COCO_TEST_ANNFILE,
-                        dataset_name = 'coco'
-                    )
-            self.aic_evaler = Evaler(
-                        eval_ids = cfg.AIC_DATA_LOADER.TEST_ID,
-                        gv_feat = cfg.AIC_DATA_LOADER.TEST_GV_FEAT,
-                        att_feats = cfg.AIC_DATA_LOADER.TEST_ATT_FEATS,
-                        eval_annfile = cfg.INFERENCE.AIC_TEST_ANNFILE,
-                        dataset_name = 'aic'
-                    )     
-            self.evaler = {'coco': self.coco_evaler,'aic': self.aic_evaler} 
+            self.evaler = {}
+            if 'coco' in self.args.dataset:
+                self.coco_evaler = Evaler(
+                            eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
+                            gv_feat = cfg.COCO_DATA_LOADER.TEST_GV_FEAT,
+                            att_feats = cfg.COCO_DATA_LOADER.TEST_ATT_FEATS,
+                            eval_annfile = cfg.INFERENCE.COCO_TEST_ANNFILE,
+                            dataset_name = 'coco',
+                            lang = self.args.lang
+                        )
+                self.evaler['coco'] = self.coco_evaler
+            if 'aic' in self.args.dataset:
+                self.aic_evaler = Evaler(
+                            eval_ids = cfg.AIC_DATA_LOADER.TEST_ID,
+                            gv_feat = cfg.AIC_DATA_LOADER.TEST_GV_FEAT,
+                            att_feats = cfg.AIC_DATA_LOADER.TEST_ATT_FEATS,
+                            eval_annfile = cfg.INFERENCE.AIC_TEST_ANNFILE,
+                            dataset_name = 'aic',
+                            lang = self.args.lang
+                        )     
+                self.evaler['aic'] = self.aic_evaler
             
         if self.args.output_attention_list: 
             with open(self.args.output_attention_list,'r') as f:
@@ -126,11 +132,15 @@ def parse_args():
     parser.add_argument('--test_raw_image', action='store_true', default=False)
     parser.add_argument('--test_dir', type=str, default='')
     parser.add_argument('--output_attention_list', default=None)
+    parser.add_argument('--lang', type=str, default='zh')
+    parser.add_argument('--dataset',type=str,default='coco,aic')
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
 
     args = parser.parse_args()
+    args.dataset = args.dataset.split(',')
     return args
 
 if __name__ == '__main__':

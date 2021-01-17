@@ -30,6 +30,7 @@ from lib.config import cfg, cfg_from_file
 class Trainer(object):
     def __init__(self, args):
         super(Trainer, self).__init__()
+        self.vocab = utils.load_vocab(cfg.INFERENCE.VOCAB)
         self.args = args
         if cfg.SEED > 0:
             random.seed(cfg.SEED)
@@ -70,7 +71,8 @@ class Trainer(object):
                             gv_feat = cfg.COCO_DATA_LOADER.VAL_GV_FEAT,
                             att_feats = cfg.COCO_DATA_LOADER.VAL_ATT_FEATS,
                             eval_annfile = cfg.INFERENCE.COCO_VAL_ANNFILE,
-                            dataset_name = 'coco'
+                            dataset_name = 'coco',
+                            lang=self.args.lang
                         )
                     # self.test_evaler[dataset_name] = Evaler(
                     #     eval_ids = cfg.COCO_DATA_LOADER.TEST_ID,
@@ -85,7 +87,8 @@ class Trainer(object):
                             gv_feat = cfg.AIC_DATA_LOADER.VAL_GV_FEAT,
                             att_feats = cfg.AIC_DATA_LOADER.VAL_ATT_FEATS,
                             eval_annfile = cfg.INFERENCE.AIC_VAL_ANNFILE,
-                            dataset_name = 'aic'
+                            dataset_name = 'aic',
+                            lang=self.args.lang
                         )
                     # self.test_evaler[dataset_name] = Evaler(
                     #     eval_ids = cfg.AIC_DATA_LOADER.TEST_ID,
@@ -182,8 +185,8 @@ class Trainer(object):
             self.distributed, epoch, self.combined_set)
 
     def eval(self, epoch):
-        if (epoch + 1) % cfg.SOLVER.TEST_INTERVAL != 0:
-            return None
+        # if (epoch + 1) % cfg.SOLVER.TEST_INTERVAL != 0:
+        #     return None
         if self.distributed and dist.get_rank() > 0:
             return None
         val_results, test_results = {},{}
@@ -281,8 +284,16 @@ class Trainer(object):
 
     def forward(self, kwargs):
         if self.rl_stage == False:
-            logit = self.model(**kwargs)
+            logit = self.model(**kwargs)#B,L,V
             loss, loss_info = self.xe_criterion(logit, kwargs[cfg.PARAM.TARGET_SENT])
+            # self.logger.info('loss {}'.format(loss.item()))
+            # input_sent = utils.decode_sequence(self.vocab,kwargs[cfg.PARAM.INPUT_SENT][:,1:],'zh')
+            # pred = torch.argmax(logit, dim=-1)
+            # tgt_sent = utils.decode_sequence(self.vocab,kwargs[cfg.PARAM.TARGET_SENT].data,'zh')
+            # output_sent = utils.decode_sequence(self.vocab,pred.data,'zh')
+            # for i in range(len(input_sent)):
+            #     self.logger.info('input: {}\ntarget: {}\noutput: {}\n'.format(input_sent[i], tgt_sent[i],output_sent[i]))
+            # input()
         else:
             ids = kwargs[cfg.PARAM.INDICES]
             gv_feat = kwargs[cfg.PARAM.GLOBAL_FEAT]
@@ -342,8 +353,9 @@ class Trainer(object):
             iteration = start_epoch*len(self.training_loader)
             print('Start from epoch {} iteration {}'.format(start_epoch, iteration))
             for i in range(start_epoch):
-                for j in range(iteration):
-                    self.optim.scheduler_step('Iter')
+                for j in range(len(self.training_loader)):
+                    if j%cfg.DATA_LOADER.ACCUMULATE_STEPS == 0:  
+                        self.optim.scheduler_step('Iter')
                 self.optim.scheduler_step('Epoch', None)
             print('Learning rate {}'.format(self.optim.get_lr()))
             print('Press enter to continue')
@@ -361,7 +373,10 @@ class Trainer(object):
             losses = AverageMeter()
             if not self.distributed or self.args.local_rank == 0:
                 pbar = ProgressBar(n_total=len(self.training_loader), desc='Training')
-                val = self.eval(epoch)
+                if (not 'overfit' in self.args.config) or (epoch%20==0):
+                    self.model.eval()
+                    val = self.eval(epoch)
+                    self.model.train()
                 print()
             for step, (indices, input_seq, target_seq, gv_feat, att_feats, att_mask, image_ids, dataset_name) in enumerate(self.training_loader):
 
@@ -398,7 +413,8 @@ class Trainer(object):
                     pbar(step)
             
             print()
-            self.save_model(epoch)
+            if (not 'overfit' in self.args.config) or (epoch%100==0):
+                self.save_model(epoch)
            # val = self.eval(epoch)
 
             self.optim.scheduler_step('Epoch', None)
@@ -425,14 +441,13 @@ def parse_args():
     parser.add_argument('--accumulate_steps', type=int, help='a * n_gpu * bs_forward = 40')
     parser.add_argument('--batchsize_forward', type=int, help='a * n_gpu * bs_forward = 40')
 
+    parser.add_argument('--lang', type=str, default='zh')
 
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
 
     args = parser.parse_args()
-    cfg.DATA_LOADER.ACCUMULATE_STEPS = args.accumulate_steps
-    cfg.TRAIN.BATCH_SIZE = args.batchsize_forward
     args.summary_dir = os.path.join(args.folder,'train_summary')
     #print(args.summary_dir)
     if not os.path.exists(args.summary_dir):
@@ -451,5 +466,7 @@ if __name__ == '__main__':
     if args.folder is not None:
         cfg_from_file(args.config)
     cfg.ROOT_DIR = args.folder
+    cfg.DATA_LOADER.ACCUMULATE_STEPS = args.accumulate_steps
+    cfg.TRAIN.BATCH_SIZE = args.batchsize_forward
     trainer = Trainer(args)
     trainer.train()
