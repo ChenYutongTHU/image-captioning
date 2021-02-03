@@ -109,7 +109,7 @@ class Optimizer(nn.Module):
             val = None
 
         if lrs_type == cfg.SOLVER.LR_POLICY.SETP_TYPE:
-            self.scheduler.step(val)
+            self.scheduler.step(val) #EPOCH plateau
 
     def get_lr(self):
         lr = []

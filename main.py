@@ -141,6 +141,13 @@ class Trainer(object):
                 torch.load(self.snapshot_path("caption_model", self.args.resume),
                     map_location=lambda storage, loc: storage)
             )
+        elif self.args.resume_model_path:
+            self.logger.info('Resume '+self.args.resume_model_path)
+            assert os.path.isfile(self.args.resume_model_path)
+            self.model.load_state_dict(
+                torch.load(self.args.resume_model_path,
+                    map_location=lambda storage, loc: storage)
+            )
 
         self.optim = Optimizer(self.model)
         self.xe_criterion = losses.create(cfg.LOSSES.XE_TYPE).cuda()
@@ -209,7 +216,7 @@ class Trainer(object):
             self.writer_val[dataset_name].add_scalar('weighted valuation', val, epoch)
 #SCORER:
   # TYPES: ['CIDEr']
-  # WEIGHTS: [1.0]
+  # WEIGHTS: [1.0]  #Only COCO is used for RL training
         return val
 
     def snapshot_path(self, name, epoch):
@@ -282,7 +289,7 @@ class Trainer(object):
             processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)            
             self.writer.add_image('ProcessedImage_{}'.format(dataset_name), img_tensor=processed_img, global_step=iteration, dataformats='HWC')
 
-    def forward(self, kwargs):
+    def forward(self, kwargs, rl_log=False, epoch=0):
         if self.rl_stage == False:
             logit = self.model(**kwargs)#B,L,V
             loss, loss_info = self.xe_criterion(logit, kwargs[cfg.PARAM.TARGET_SENT])
@@ -295,7 +302,7 @@ class Trainer(object):
             #     self.logger.info('input: {}\ntarget: {}\noutput: {}\n'.format(input_sent[i], tgt_sent[i],output_sent[i]))
             # input()
         else:
-            ids = kwargs[cfg.PARAM.INDICES]
+            ids = kwargs[cfg.PARAM.INDICES]  #-> STR IMAGE_ID
             gv_feat = kwargs[cfg.PARAM.GLOBAL_FEAT]
             att_feats = kwargs[cfg.PARAM.ATT_FEATS]
             att_mask = kwargs[cfg.PARAM.ATT_FEATS_MASK]
@@ -311,7 +318,7 @@ class Trainer(object):
             with torch.no_grad():
                 seq_max, logP_max = self.model.module.decode(**kwargs)
             self.model.train()
-            rewards_max, rewards_info_max = self.scorer(ids, seq_max.data.cpu().numpy().tolist())
+            rewards_max, rewards_info_max, gts = self.scorer(ids, seq_max.data.cpu().numpy().tolist())
             rewards_max = utils.expand_numpy(rewards_max)
 
             ids = utils.expand_numpy(ids)
@@ -327,9 +334,9 @@ class Trainer(object):
             kwargs[cfg.PARAM.ATT_FEATS_MASK] = att_mask
 
             seq_sample, logP_sample = self.model.module.decode(**kwargs)
-            rewards_sample, rewards_info_sample = self.scorer(ids, seq_sample.data.cpu().numpy().tolist())
+            rewards_sample, rewards_info_sample,_ = self.scorer(ids, seq_sample.data.cpu().numpy().tolist())
 
-            rewards = rewards_sample - rewards_max
+            rewards = rewards_sample - rewards_max  #reward negative  rewards_sample < rewards_max
             rewards = torch.from_numpy(rewards).float().cuda()
             loss = self.rl_criterion(seq_sample, logP_sample, rewards)
             
@@ -338,6 +345,31 @@ class Trainer(object):
                 loss_info[key + '_sample'] = rewards_info_sample[key]
             for key in rewards_info_max:
                 loss_info[key + '_max'] = rewards_info_max[key]
+            greedy_seqs = utils.decode_sequence(self.vocab,seq_max,'zh')
+            sample_seqs = utils.decode_sequence(self.vocab,seq_sample,'zh')
+            # print(len(greedy_seqs))
+            # print(len(rewards),len(rewards_max),len(rewards_sample))
+            # input()
+
+            if rl_log==True:
+                self.logger.info('############Epoch {}################'.format(epoch))
+                for i in range(len(greedy_seqs)):
+                    #self.logger.info(greedy_seqs[i])
+                    self.logger.info('{:.2f} {}'.format(float(rewards_max[i*cfg.DATA_LOADER.SEQ_PER_IMG]), greedy_seqs[i]))
+                    # print(gts[i])
+                    # print(len(gts), np.array(gts[i]).shape)
+                    # input()
+                    for g in gts[i]:
+                        g_ = utils.decode_sequence(self.vocab, np.array([g]), 'zh')
+                        self.logger.info(g_)
+                    for j in range(cfg.DATA_LOADER.SEQ_PER_IMG):
+                        k = i*cfg.DATA_LOADER.SEQ_PER_IMG+j
+                        self.logger.info('{:.2f} {:.2f} {}'.format(
+                            float(rewards_sample[k]), 
+                            float(rewards[k].detach().cpu().numpy()), 
+                            sample_seqs[k]))
+                    self.logger.info(' ')
+                
 
         return loss, loss_info
 
@@ -365,6 +397,8 @@ class Trainer(object):
         for epoch in  range(start_epoch, cfg.SOLVER.MAX_EPOCH):
             if epoch == cfg.TRAIN.REINFORCEMENT.START:
                 self.rl_stage = True
+                assert not self.distributed, 'Not support distributed training for SCST'
+                assert self.args.dataset_name == 'coco', 'Only support SCST for COCO  datasets {}'.format(self.args.dataset_name)
             self.setup_loader(epoch)
 
             start = time.time()
@@ -373,7 +407,7 @@ class Trainer(object):
             losses = AverageMeter()
             if not self.distributed or self.args.local_rank == 0:
                 pbar = ProgressBar(n_total=len(self.training_loader), desc='Training')
-                if (not 'overfit' in self.args.config) or (epoch%20==0):
+                if epoch == start_epoch:
                     self.model.eval()
                     val = self.eval(epoch)
                     self.model.train()
@@ -382,14 +416,16 @@ class Trainer(object):
 
                 data_time.update(time.time() - start)
 
+                # print(indices, image_ids)
+                # input()
                 input_seq = input_seq.cuda()
                 target_seq = target_seq.cuda()
                 gv_feat = gv_feat.cuda()
                 att_feats = att_feats.cuda()
                 att_mask = att_mask.cuda()
 
-                kwargs = self.make_kwargs(indices, input_seq, target_seq, gv_feat, att_feats, att_mask)
-                loss, loss_info = self.forward(kwargs)
+                kwargs = self.make_kwargs(image_ids, input_seq, target_seq, gv_feat, att_feats, att_mask)
+                loss, loss_info = self.forward(kwargs, rl_log=True if self.rl_stage and step%2500==0  else False, epoch=epoch)
                 loss.backward()
 
                 if step%cfg.DATA_LOADER.ACCUMULATE_STEPS == 0:                    
@@ -415,9 +451,12 @@ class Trainer(object):
             print()
             if (not 'overfit' in self.args.config) or (epoch%100==0):
                 self.save_model(epoch)
-           # val = self.eval(epoch)
 
-            self.optim.scheduler_step('Epoch', None)
+            model.eval()
+            val = self.eval(epoch)
+            model.train()
+
+            self.optim.scheduler_step('Epoch', val)  #val -> None
             self.scheduled_sampling(epoch)
 
             if self.distributed:
@@ -431,6 +470,7 @@ def parse_args():
     parser.add_argument('--folder', type=str, default='debug')
     parser.add_argument("--local_rank", type=int, default=-1)
     parser.add_argument("--resume", type=int, default=-1)
+    parser.add_argument("--resume_model_path", type=str, default=None)
     parser.add_argument('--dataset_name', default='coco_aic')
     parser.add_argument('--debug', action="store_true", default=False)
     parser.add_argument('--config', default='config.yml')

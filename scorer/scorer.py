@@ -29,12 +29,13 @@ class Scorer(object):
 
     def __call__(self, ids, res):
         hypo = [get_sents(r) for r in res]
-        gts = [self.gts[i] for i in ids]
-
+        gts = [self.gts[str(i)] for i in ids]
+        #print('gt', gts)
         rewards_info = {}
         rewards = np.zeros(len(ids))
         for i, scorer in enumerate(self.scorers):
             score, scores = scorer.compute_score(gts, hypo)
             rewards += self.weights[i] * scores
             rewards_info[cfg.SCORER.TYPES[i]] = score
-        return rewards, rewards_info
+        #print('rewards', rewards)
+        return rewards, rewards_info, gts

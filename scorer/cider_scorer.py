@@ -67,6 +67,7 @@ class CiderScorer(object):
 
         cider_cache = pickle.load(open(cfg.SCORER.CIDER_CACHED, 'rb'), encoding='bytes')
         self.document_frequency = cider_cache['document_frequency']
+        self.document_frequency = defaultdict(lambda :0, self.document_frequency)
         self.ref_len = cider_cache['ref_len']
         self.cook_append(test, refs)
         

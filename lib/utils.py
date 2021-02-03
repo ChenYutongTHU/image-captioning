@@ -157,7 +157,10 @@ def clip_gradient(optimizer, model, grad_clip_type, grad_clip):
         raise NotImplementedError
 
 def decode_sequence(vocab, seq, lang='en'):
-    N, T = seq.size()
+    if type(seq)==np.ndarray:
+        N, T = seq.shape
+    else:
+        N, T = seq.size()
     sents = []
     for n in range(N):
         words = []

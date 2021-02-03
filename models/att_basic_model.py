@@ -147,7 +147,7 @@ class AttBasicModel(BasicModel):
         logprobs = F.log_softmax(self.logit(Forward_output[0]), dim=1) #B, V
         state = Forward_output[1]
         #print('get_logprobs_state\n',type(Forward_output[2]), len(Forward_output[2]),len(Forward_output[2][0]))
-        if kwargs['output_attention']:
+        if 'output_attention' in kwargs and kwargs['output_attention']:
             return [logprobs, state, Forward_output[2]]
         else:
             return [logprobs, state]
@@ -177,6 +177,7 @@ class AttBasicModel(BasicModel):
         batch_size = att_feats.size(0)
         seq_logprob = torch.zeros((batch_size, 1, 1)).cuda()
         log_probs, attention_scores = [], []
+        distributions = []
         selected_words = None
         seq_mask = torch.ones((batch_size, beam_size, 1)).cuda()
 
@@ -251,12 +252,17 @@ class AttBasicModel(BasicModel):
             outputs = list(torch.gather(o, 1, selected_beam.unsqueeze(-1)) for o in outputs)
             outputs.append(selected_words.unsqueeze(-1)) #B, beam_size, 1
 
-            this_word_logprob = torch.gather(word_logprob, 1,
-                selected_beam.unsqueeze(-1).expand(batch_size, beam_size, word_logprob.shape[-1]))
-            this_word_logprob = torch.gather(this_word_logprob, 2, selected_words.unsqueeze(-1))
+            this_word_logprob_on_beam = torch.gather(word_logprob, 1,
+                selected_beam.unsqueeze(-1).expand(batch_size, beam_size, word_logprob.shape[-1])) #B,bs,#V
+            # print(this_word_logprob_on_beam.shape)
+            # input()
+            this_word_logprob = torch.gather(this_word_logprob_on_beam, 2, selected_words.unsqueeze(-1))#B,bs,
             log_probs = list(
                 torch.gather(o, 1, selected_beam.unsqueeze(-1).expand(batch_size, beam_size, 1)) for o in log_probs)
             log_probs.append(this_word_logprob)
+            distributions = list(
+                torch.gather(d, 1, selected_beam.unsqueeze(-1).expand(batch_size, beam_size, this_word_logprob_on_beam.shape[-1])) for d in distributions)
+            distributions.append(this_word_logprob_on_beam)
             selected_words = selected_words.view(-1, 1)#B*beam_size 1
             wt = selected_words.squeeze(-1) #B*beam_size
 
@@ -274,11 +280,13 @@ class AttBasicModel(BasicModel):
         seq_logprob, sort_idxs = torch.sort(seq_logprob, 1, descending=True)
         outputs = torch.cat(outputs, -1)
         outputs = torch.gather(outputs, 1, sort_idxs.expand(batch_size, beam_size, cfg.MODEL.SEQ_LEN))
-        log_probs = torch.cat(log_probs, -1)
+        log_probs = torch.cat(log_probs, -1) #B,bs,1,L
         log_probs = torch.gather(log_probs, 1, sort_idxs.expand(batch_size, beam_size, cfg.MODEL.SEQ_LEN))
-
+        distributions= torch.stack(distributions, -2) #B,bs,L,#V
+        distributions = torch.gather(distributions, 1, sort_idxs.unsqueeze(-1).expand(batch_size, beam_size, cfg.MODEL.SEQ_LEN, distributions.shape[-1]))
         outputs = outputs.contiguous()[:, 0]
         log_probs = log_probs.contiguous()[:, 0]
+        distributions = distributions.contiguous()[:,0] # B,L,#V
 
 
         if output_attention:
@@ -291,9 +299,9 @@ class AttBasicModel(BasicModel):
             attention_scores = attention_scores.contiguous()[:,0] # B,H,N,T
             #print(attention_scores.shape, att_mask0.shape)
             #input()
-            return outputs, log_probs, attention_scores, att_mask0
+            return outputs, log_probs, attention_scores, att_mask0,distributions
         else:
-            return outputs, log_probs
+            return outputs, log_probs,distributions
 
     # For the experiments of X-LAN, we use the following beam search code, 
     # which achieves slightly better results but much slower.
