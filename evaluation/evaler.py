@@ -47,6 +47,7 @@ class Evaler(object):
         kwargs['BEAM_SIZE'] = cfg.INFERENCE.BEAM_SIZE
         kwargs['GREEDY_DECODE'] = cfg.INFERENCE.GREEDY_DECODE
         kwargs['output_attention'] = output_attention
+        kwargs['device'] = 'cuda:0'
         return kwargs
     
     def visualize_attention(self, result_folder, sents, attention_scores, att_mask, image_ids, number=1, output_list=None):
@@ -124,8 +125,6 @@ class Evaler(object):
                         if kwargs['output_attention']:
                             seq, _, attention_scores, att_mask, distributions = model.module.decode_beam(**kwargs)
                             output_dist.append(distributions.cpu().detach().numpy()) #B,L,#V
-                            # print(seq[0,:])
-                            # print(torch.argmax(distributions,dim=-1)[0])#B,L
                         else:
                             seq, _, _ = model.module.decode_beam(**kwargs)
                     else:

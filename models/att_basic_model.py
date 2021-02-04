@@ -64,9 +64,11 @@ class AttBasicModel(BasicModel):
                 layer_num = cfg.MODEL.BILINEAR.ENCODE_LAYERS
             )
 
-    def init_hidden(self, batch_size):
-        return [Variable(torch.zeros(self.num_layers, batch_size, cfg.MODEL.RNN_SIZE).cuda()),
-                Variable(torch.zeros(self.num_layers, batch_size, cfg.MODEL.RNN_SIZE).cuda())]
+    def init_hidden(self, batch_size, kwargs=None):
+        if kwargs==None:
+            kwargs = {'device':'cuda:0'}
+        return [Variable(torch.zeros(self.num_layers, batch_size, cfg.MODEL.RNN_SIZE).to(kwargs['device'])),
+                Variable(torch.zeros(self.num_layers, batch_size, cfg.MODEL.RNN_SIZE).to(kwargs['device']))]
 
     def make_kwargs(self, wt, gv_feat, att_feats, att_mask, p_att_feats, state, **kgs):
         kwargs = kgs
@@ -114,10 +116,10 @@ class AttBasicModel(BasicModel):
         batch_size = gv_feat.size(0)
         state = self.init_hidden(batch_size)
 
-        outputs = Variable(torch.zeros(batch_size, seq.size(1), self.vocab_size).cuda())
+        outputs = Variable(torch.zeros(batch_size, seq.size(1), self.vocab_size).to(kwargs['device']))
         for t in range(seq.size(1)):
             if self.training and t >=1 and self.ss_prob > 0:
-                prob = torch.empty(batch_size).cuda().uniform_(0, 1)
+                prob = torch.empty(batch_size).to(kwargs['device']).uniform_(0, 1)
                 mask = prob < self.ss_prob
                 if mask.sum() == 0:
                     wt = seq[:,t].clone()
@@ -175,14 +177,14 @@ class AttBasicModel(BasicModel):
         beam_size = kwargs['BEAM_SIZE']
         output_attention = kwargs['output_attention']
         batch_size = att_feats.size(0)
-        seq_logprob = torch.zeros((batch_size, 1, 1)).cuda()
+        seq_logprob = torch.zeros((batch_size, 1, 1)).to(kwargs['device'])
         log_probs, attention_scores = [], []
         distributions = []
         selected_words = None
-        seq_mask = torch.ones((batch_size, beam_size, 1)).cuda()
+        seq_mask = torch.ones((batch_size, beam_size, 1)).to(kwargs['device'])
 
-        state = self.init_hidden(batch_size)
-        wt = Variable(torch.zeros(batch_size, dtype=torch.long).cuda())
+        state = self.init_hidden(batch_size, kwargs)
+        wt = Variable(torch.zeros(batch_size, dtype=torch.long).to(kwargs['device']))
 
         kwargs[cfg.PARAM.ATT_FEATS] = att_feats
         kwargs[cfg.PARAM.GLOBAL_FEAT] = gv_feat
@@ -311,8 +313,8 @@ class AttBasicModel(BasicModel):
        gv_feat, att_feats, att_mask, p_att_feats = self.preprocess(**kwargs)
        batch_size = gv_feat.size(0)
     
-       sents = Variable(torch.zeros((cfg.MODEL.SEQ_LEN, batch_size), dtype=torch.long).cuda())
-       logprobs = Variable(torch.zeros(cfg.MODEL.SEQ_LEN, batch_size).cuda())   
+       sents = Variable(torch.zeros((cfg.MODEL.SEQ_LEN, batch_size), dtype=torch.long).to(kwargs['device']))
+       logprobs = Variable(torch.zeros(cfg.MODEL.SEQ_LEN, batch_size).to(kwargs['device']))   
        self.done_beams = [[] for _ in range(batch_size)]
        for n in range(batch_size):
            state = self.init_hidden(beam_size)
@@ -324,7 +326,7 @@ class AttBasicModel(BasicModel):
            # bs, N
            p_att_feats_beam = p_att_feats[n:n+1].expand(*((beam_size,)+p_att_feats.size()[1:])).contiguous() if p_att_feats is not None else None
     
-           wt = Variable(torch.zeros(beam_size, dtype=torch.long).cuda())
+           wt = Variable(torch.zeros(beam_size, dtype=torch.long).to(kwargs['device']))
            kwargs = self.make_kwargs(wt, gv_feat_beam, att_feats_beam, att_mask_beam, p_att_feats_beam, state, **kwargs)
            logprobs_t, state = self.get_logprobs_state(**kwargs) 
            # logprobs_t  beam_size, #V
@@ -344,9 +346,9 @@ class AttBasicModel(BasicModel):
         batch_size = gv_feat.size(0)
         state = self.init_hidden(batch_size)
 
-        sents = Variable(torch.zeros((batch_size, cfg.MODEL.SEQ_LEN), dtype=torch.long).cuda())
-        logprobs = Variable(torch.zeros(batch_size, cfg.MODEL.SEQ_LEN).cuda())
-        wt = Variable(torch.zeros(batch_size, dtype=torch.long).cuda())
+        sents = Variable(torch.zeros((batch_size, cfg.MODEL.SEQ_LEN), dtype=torch.long).to(kwargs['device']))
+        logprobs = Variable(torch.zeros(batch_size, cfg.MODEL.SEQ_LEN).to(kwargs['device']))
+        wt = Variable(torch.zeros(batch_size, dtype=torch.long).to(kwargs['device']))
         unfinished = wt.eq(wt)
         for t in range(cfg.MODEL.SEQ_LEN):
             kwargs = self.make_kwargs(wt, gv_feat, att_feats, att_mask, p_att_feats, state)
